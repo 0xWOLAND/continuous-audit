@@ -4,14 +4,23 @@ import { InvestigationQuestions, PROMPTS, RiskAssessment } from '../prompts';
 import { withBackoff } from '../utils';
 import { z } from 'zod';
 
+// Define schemas for analysis responses
+const AnalysisResponse = z.object({
+    initialThoughts: z.string(),
+    questions: z.array(z.string()),
+    indicators: z.array(z.string()),
+    riskLevel: z.number().min(1).max(5),
+    justification: z.string()
+});
+
 export class DeepSearch {
     private static readonly LIMITS = {
         MAX_RETRIES: 3,
-        MAX_RESULTS_PER_QUERY: 5,
-        MAX_PAGES_PER_SITE: 10,
-        MAX_TOPICS: 20,          
-        MAX_URLS: 10,            // Reduced from 50 to 10 for more focused research
-        MAX_SEARCH_TIME_MS: 1000 * 60 * 15  // 15 minutes
+        MAX_RESULTS_PER_QUERY: 3,
+        MAX_PAGES_PER_SITE: 5,
+        MAX_TOPICS: 10,
+        MAX_URLS: 5,
+        MAX_SEARCH_TIME_MS: 1000 * 60 * 15  // Reduced to 5 minutes
     } as const;
 
     private queue: ResearchQueue;
@@ -37,7 +46,7 @@ export class DeepSearch {
         schema?: T
     ): Promise<T extends z.ZodType ? z.infer<T> : string> {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000); // Increased to 60 seconds
+        const timeout = setTimeout(() => controller.abort(), 60000);
 
         console.log(`\nAnalyzing with model ${model}`, {
             promptLength: prompt.length,
@@ -62,11 +71,20 @@ export class DeepSearch {
                 },
                 body: JSON.stringify({
                     model,
-                    messages: [{ 
-                        role: 'user', 
-                        content: `${prompt}\n\n${context.slice(0, 6000)}` // Limit context to 6000 chars
-                    }],
-                    temperature: 0
+                    messages: [
+                        { 
+                            role: 'system', 
+                            content: schema ? 'You must respond with a valid JSON object that matches the specified schema.' : undefined
+                        },
+                        { 
+                            role: 'user', 
+                            content: `${prompt}\n\n${context.slice(0, 6000)}` 
+                        }
+                    ].filter(Boolean),
+                    temperature: 0,
+                    response_format: schema ? { 
+                        type: 'json_object'
+                    } : undefined
                 }),
                 signal: controller.signal
             });
@@ -87,7 +105,12 @@ export class DeepSearch {
 
             console.log('Successfully received analysis response');
             if (schema) {
-                return schema.parse(JSON.parse(content)) as any;
+                try {
+                    return schema.parse(JSON.parse(content)) as any;
+                } catch (error) {
+                    console.error('Failed to parse JSON response:', content);
+                    throw error;
+                }
             }
             return content as any;
         } catch (error) {
@@ -385,17 +408,16 @@ ${this.formatLocation(details.place_of_performance)}
             this.queue.visitedUrls.add(url);
 
             const pages = await this.crawlUrl(url);
-            console.log(`Processing ${pages.length} pages from ${url}`);
+            console.log(`Found ${pages.length} pages from ${url}`);
             await Promise.all(pages.map(page => this.processPage(page, context, awardDetails)));
         }
     }
 
     private async processPage(page: SearchResult, context: AwardSearchContext, awardDetails?: any) {
-        console.log(`\nProcessing page: ${page.url}`);
         const analysis = await this.analyzeForFraud(page.content, context.originalAwardId, awardDetails);
         
         if (analysis.riskLevel > 1) {
-            console.log(`Found significant risk (${analysis.riskLevel}/5) at ${page.url}`);
+            console.log(`Risk level ${analysis.riskLevel}/5 detected`);
             const relevanceScore = analysis.riskLevel / 5;
             
             context.findings.push({
@@ -446,24 +468,31 @@ ${this.formatLocation(details.place_of_performance)}
         const details = awardDetails?.details || {};
         const recipient = details?.recipient || {};
 
-        // Add company-specific searches
+        // Focus on company-specific searches
         if (recipient.recipient_name) {
-            this.addTopic(`${recipient.recipient_name} contract fraud investigations`);
-            this.addTopic(`${recipient.recipient_name} performance history government contracts`);
+            const companyName = recipient.recipient_name;
+            this.addTopic(`${companyName} fraud`);
+            this.addTopic(`${companyName} investigation`);
+            this.addTopic(`${companyName} lawsuit`);
+            this.addTopic(`${companyName} debarment`);
+            
+            // Add location context if available
+            if (recipient.location?.city_name && recipient.location?.state_code) {
+                this.addTopic(`${companyName} ${recipient.location.city_name} ${recipient.location.state_code} violations`);
+            }
         }
 
+        // Add parent company searches if different
         if (recipient.parent_recipient_name && recipient.parent_recipient_name !== recipient.recipient_name) {
-            this.addTopic(`${recipient.parent_recipient_name} subsidiary investigations`);
+            const parentName = recipient.parent_recipient_name;
+            this.addTopic(`${parentName} fraud`);
+            this.addTopic(`${parentName} subsidiaries investigation`);
         }
 
-        // Add location-based searches
-        if (recipient.location?.city_name && recipient.location?.state_code) {
-            this.addTopic(`government contractor investigations ${recipient.location.city_name} ${recipient.location.state_code}`);
-        }
-
-        // Add industry-specific searches
-        if (details.naics_hierarchy?.base_code?.description) {
-            this.addTopic(`contract fraud ${details.naics_hierarchy.base_code.description}`);
+        // Only add industry searches if we have specific concerns
+        if (details.risk_score > 3 && details.naics_hierarchy?.base_code?.description) {
+            const industry = details.naics_hierarchy.base_code.description;
+            this.addTopic(`${industry} ${recipient.recipient_name} violations`);
         }
     }
 

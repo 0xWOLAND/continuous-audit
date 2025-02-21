@@ -1,7 +1,8 @@
 export async function withBackoff<T>(
     fn: () => Promise<T>, 
-    maxRetries = 3,
-    baseDelay = 1000
+    maxRetries = 30,
+    baseDelay = 1000,
+    maxDelay = 32000 // Cap maximum delay at 32 seconds
 ): Promise<T> {
     let retries = 0;
     
@@ -14,8 +15,8 @@ export async function withBackoff<T>(
                 throw error;
             }
 
-            const delay = baseDelay * Math.pow(2, retries);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            const delay = Math.min(baseDelay * Math.pow(2, retries), maxDelay);
+            await sleep(delay);
             retries++;
         }
     }

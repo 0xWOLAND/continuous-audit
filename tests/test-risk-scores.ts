@@ -1,8 +1,6 @@
 import * as dotenv from 'dotenv';
-import { AwardSearchContext, ProcessedAward } from '../src/types';
+import { AwardSearchContext } from '../src/types';
 import worker from '../src/worker';
-import { AWARDS_KV } from './mock-kv';
-import { mockScheduledEvent } from './mock-scheduled-event';
 dotenv.config();
 
 interface Award {

@@ -6,6 +6,7 @@ interface Env {
   AWARDS_KV: KVNamespace;
   FIRECRAWL_API_KEY: string;
   OPENAI_API_KEY: string;
+  ENVIRONMENT?: string;  // Optional since it might not be set in dev
 }
 
 // Extend the Request type to include params
@@ -104,7 +105,6 @@ router.all('*', () => new Response('Not Found', { status: 404 }));
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    // Pass env as part of the request context
     return router.handle(request, env)
       .catch(error => {
         console.error('Router error:', error);
@@ -117,8 +117,40 @@ export default {
     const api = new USAspendingAPI(env.AWARDS_KV);
     
     try {
+      // First fetch new awards
       await api.processAwards();
       console.log('Finished polling awards');
+
+      // Skip automated research if running with --test-scheduled
+      const isTestScheduled = event.cron === 'test-scheduled';
+      if (isTestScheduled) {
+        console.log('Skipping automated research in test mode');
+        return;
+      }
+
+      // Get all awards that haven't been researched yet
+      const allAwards = await env.AWARDS_KV.list();
+      const deepSearch = new DeepSearch(env);
+
+      for (const key of allAwards.keys) {
+        if (key.name.startsWith('research:')) continue;
+
+        const hasResearch = await env.AWARDS_KV.get(`research:${key.name}`);
+        if (hasResearch) continue;
+
+        console.log(`Starting research for award: ${key.name}`);
+        const award = await api.getAward(key.name);
+        if (!award) continue;
+
+        try {
+          await deepSearch.searchAward(key.name, award);
+          console.log(`Completed research for award: ${key.name}`);
+        } catch (error) {
+          console.error(`Research failed for award ${key.name}:`, error);
+        }
+      }
+
+      console.log('Finished researching new awards');
     } catch (error) {
       console.error('Error during scheduled polling:', error);
     }
