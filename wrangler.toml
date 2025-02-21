@@ -1,0 +1,11 @@
+name = "usa-spending-poller"
+main = "src/worker.ts"
+compatibility_date = "2024-02-19"
+
+[[kv_namespaces]]
+binding = "AWARDS_KV"
+id = "1bac179428b94161abf6c9fcb97991eb"
+preview_id = "de5408a1783e4660802d416a3c2fddb7"
+
+[triggers]
+crons = ["0 */6 * * *"] 

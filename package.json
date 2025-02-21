@@ -1,0 +1,25 @@
+{
+  "name": "usa-spending-poller",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker that polls USA Spending API for awards data",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "types": "tsc",
+    "test-fetch": "tsx src/test-fetch.ts",
+    "test-worker": "concurrently \"wrangler dev --test-scheduled\" \"wait-on tcp:8787 && tsx src/test-fetch.ts\""
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "itty-router": "^4.0.27"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240208.0",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.1",
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0",
+    "wrangler": "^3.28.2"
+  }
+}
