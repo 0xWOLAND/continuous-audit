@@ -8,17 +8,22 @@
     "deploy": "wrangler deploy",
     "types": "tsc",
     "test-fetch": "tsx src/test-fetch.ts",
-    "test-worker": "concurrently \"wrangler dev --test-scheduled\" \"wait-on tcp:8787 && tsx src/test-fetch.ts\""
+    "test-worker": "concurrently \"wrangler dev --test-scheduled\" \"wait-on tcp:8787 && tsx src/test-fetch.ts\"",
+    "test:research": "tsx src/test-research.ts",
+    "test:research:watch": "tsx watch src/test-research.ts"
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "^1.18.2",
     "axios": "^1.6.7",
-    "itty-router": "^4.0.27"
+    "itty-router": "^4.0.27",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240208.0",
-    "typescript": "^5.3.3",
-    "tsx": "^4.7.1",
     "concurrently": "^8.2.2",
+    "dotenv": "^16.4.7",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3",
     "wait-on": "^7.2.0",
     "wrangler": "^3.28.2"
   }
