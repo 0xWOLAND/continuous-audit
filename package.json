@@ -4,14 +4,15 @@
   "description": "Cloudflare Worker that polls USA Spending API for awards data",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --local --env-path=.env",
+    "dev": "wrangler dev --local --test-scheduled",
     "deploy": "wrangler deploy",
     "types": "tsc",
     "test-fetch": "tsx tests/test-fetch.ts",
     "test-worker": "concurrently \"wrangler dev --test-scheduled\" \"wait-on tcp:8787 && tsx tests/test-fetch.ts\"",
     "test:research": "wait-on tcp:8787 && tsx tests/test-research.ts",
     "test:research:watch": "tsx watch tests/test-research.ts",
-    "test:risk-scores": "wait-on tcp:8787 && tsx tests/test-risk-scores.ts"
+    "test:risk-scores": "wait-on tcp:8787 && tsx tests/test-risk-scores.ts",
+    "clear-kv:preview": "rm -rf .wrangler/state/kv/* && wrangler kv:key list --preview --binding=AWARDS_KV | cut -f1 | xargs -I {} wrangler kv:key delete {} --preview --binding=AWARDS_KV"
   },
   "dependencies": {
     "@mendable/firecrawl-js": "^1.18.2",

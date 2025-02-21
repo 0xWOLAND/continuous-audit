@@ -10,7 +10,7 @@ export class DeepSearch {
         MAX_RESULTS_PER_QUERY: 5,
         MAX_PAGES_PER_SITE: 10,
         MAX_TOPICS: 20,          
-        MAX_URLS: 50,            
+        MAX_URLS: 10,            // Reduced from 50 to 10 for more focused research
         MAX_SEARCH_TIME_MS: 1000 * 60 * 15  // 15 minutes
     } as const;
 
@@ -36,6 +36,9 @@ export class DeepSearch {
         model = 'gpt-4-turbo-preview',
         schema?: T
     ): Promise<T extends z.ZodType ? z.infer<T> : string> {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000); // Increased to 60 seconds
+
         console.log(`\nAnalyzing with model ${model}`, {
             promptLength: prompt.length,
             contextLength: context.length,
@@ -59,17 +62,16 @@ export class DeepSearch {
                 },
                 body: JSON.stringify({
                     model,
-                    messages: [
-                        { 
-                            role: 'system', 
-                            content: schema ? `Respond with a JSON object. ${prompt}` : prompt 
-                        },
-                        { role: 'user', content: context.slice(0, 15000) }
-                    ],
-                    temperature: 0.1,
-                    response_format: schema ? { type: 'json_object' } : undefined
-                })
+                    messages: [{ 
+                        role: 'user', 
+                        content: `${prompt}\n\n${context.slice(0, 6000)}` // Limit context to 6000 chars
+                    }],
+                    temperature: 0
+                }),
+                signal: controller.signal
             });
+            
+            clearTimeout(timeout);
 
             if (!response.ok) {
                 throw new Error(`Analysis failed: ${response.status}`);
@@ -89,6 +91,7 @@ export class DeepSearch {
             }
             return content as any;
         } catch (error) {
+            clearTimeout(timeout);
             console.error('Analysis error:', error);
             return emptyResponse;
         }
@@ -112,7 +115,6 @@ export class DeepSearch {
                 score: 1
             })) : [];
 
-            console.log(`Found ${results.length} pages at ${url}`);
             return results;
         } catch (error) {
             console.error(`Crawl failed: ${url}`, error);
@@ -170,9 +172,20 @@ export class DeepSearch {
         }
     }
 
-    private async analyzeForFraud(content: string, awardId: string) {
-        console.log(`\nAnalyzing content for fraud indicators (Award: ${awardId})`);
-        if (!content?.trim()) {
+    private async analyzeForFraud(content: string, awardId: string, awardDetails: any) {
+        console.log(`\nAnalyzing content and award details for fraud indicators (Award: ${awardId})`);
+        
+        // Construct enriched context from award details
+        const enrichedContext = this.buildEnrichedContext(awardDetails);
+        const combinedContent = `
+Award Details:
+${enrichedContext}
+
+Related Content:
+${content}
+        `.trim();
+
+        if (!combinedContent?.trim()) {
             console.log('Empty content provided, skipping analysis');
             return {
                 initialThoughts: '',
@@ -187,8 +200,8 @@ export class DeepSearch {
         
         console.log('Running initial parallel analyses...');
         const [initialThoughts, indicators] = await Promise.all([
-            this.analyze(PROMPTS.INITIAL_REASONING(awardId), content, model),
-            this.analyze(PROMPTS.IDENTIFY_FRAUD_INDICATORS(awardId), content, model)
+            this.analyze(PROMPTS.INITIAL_REASONING(awardId, enrichedContext), combinedContent, model),
+            this.analyze(PROMPTS.IDENTIFY_FRAUD_INDICATORS(awardId, enrichedContext), combinedContent, model)
         ]);
 
         if (!initialThoughts) {
@@ -235,7 +248,57 @@ export class DeepSearch {
         };
     }
 
-    async searchAward(awardId: string): Promise<AwardSearchContext> {
+    private buildEnrichedContext(awardDetails: any): string {
+        const details = awardDetails?.details || {};
+        const recipient = details?.recipient || {};
+        const transactions = awardDetails?.transactions || [];
+        
+        return `
+AWARD OVERVIEW:
+- Award Amount: $${details.total_obligation || 0}
+- Date Signed: ${details.date_signed || 'Unknown'}
+- Type: ${details.type_description || 'Unknown'}
+- Description: ${details.description || 'No description'}
+
+RECIPIENT INFORMATION:
+- Name: ${recipient.recipient_name || 'Unknown'}
+- Parent Company: ${recipient.parent_recipient_name || 'None'}
+- Business Categories: ${(recipient.business_categories || []).join(', ')}
+- Location: ${this.formatLocation(recipient.location)}
+
+CONTRACT DETAILS:
+- Competition: ${details.latest_transaction_contract_data?.extent_competed_description || 'Unknown'}
+- Number of Offers: ${details.latest_transaction_contract_data?.number_of_offers_received || 'Unknown'}
+- Contract Pricing Type: ${details.latest_transaction_contract_data?.type_of_contract_pricing_description || 'Unknown'}
+
+TRANSACTION HISTORY:
+${this.formatTransactions(transactions)}
+
+PERFORMANCE LOCATION:
+${this.formatLocation(details.place_of_performance)}
+        `.trim();
+    }
+
+    private formatLocation(location: any): string {
+        if (!location) return 'Unknown';
+        return [
+            location.address_line1,
+            location.city_name,
+            location.state_code,
+            location.zip5,
+            location.country_name
+        ].filter(Boolean).join(', ');
+    }
+
+    private formatTransactions(transactions: any[]): string {
+        if (!transactions?.length) return 'No transactions recorded';
+        
+        return transactions
+            .map(t => `- ${t.action_date}: $${t.federal_action_obligation} - ${t.description || 'No description'}`)
+            .join('\n');
+    }
+
+    async searchAward(awardId: string, awardDetails?: any): Promise<AwardSearchContext> {
         console.log(`\nStarting award search for ${awardId}`);
         const startTime = Date.now();
         const context: AwardSearchContext = {
@@ -257,6 +320,11 @@ export class DeepSearch {
             console.log('Starting new research...');
             this.addTopic(awardId);
 
+            // Add specific investigation topics based on award details
+            if (awardDetails) {
+                this.addInvestigationTopics(awardDetails);
+            }
+
             while (!this.shouldStopSearch(startTime)) {
                 const urls = await this.exploreTopics(awardId);
                 if (urls.length === 0) {
@@ -264,7 +332,7 @@ export class DeepSearch {
                     break;
                 }
 
-                await this.processUrls(urls, context);
+                await this.processUrls(urls, context, awardDetails);
             }
 
             console.log('Generating final summary...');
@@ -307,7 +375,7 @@ export class DeepSearch {
         return urlLimit || timeLimit;
     }
 
-    private async processUrls(urls: string[], context: AwardSearchContext) {
+    private async processUrls(urls: string[], context: AwardSearchContext, awardDetails?: any) {
         console.log(`\nProcessing ${urls.length} URLs...`);
         for (const url of urls) {
             if (this.queue.visitedUrls.has(url)) {
@@ -318,13 +386,13 @@ export class DeepSearch {
 
             const pages = await this.crawlUrl(url);
             console.log(`Processing ${pages.length} pages from ${url}`);
-            await Promise.all(pages.map(page => this.processPage(page, context)));
+            await Promise.all(pages.map(page => this.processPage(page, context, awardDetails)));
         }
     }
 
-    private async processPage(page: SearchResult, context: AwardSearchContext) {
+    private async processPage(page: SearchResult, context: AwardSearchContext, awardDetails?: any) {
         console.log(`\nProcessing page: ${page.url}`);
-        const analysis = await this.analyzeForFraud(page.content, context.originalAwardId);
+        const analysis = await this.analyzeForFraud(page.content, context.originalAwardId, awardDetails);
         
         if (analysis.riskLevel > 1) {
             console.log(`Found significant risk (${analysis.riskLevel}/5) at ${page.url}`);
@@ -371,6 +439,31 @@ export class DeepSearch {
                 explored: false
             });
             console.log(`Added search: ${query}`);
+        }
+    }
+
+    private addInvestigationTopics(awardDetails: any) {
+        const details = awardDetails?.details || {};
+        const recipient = details?.recipient || {};
+
+        // Add company-specific searches
+        if (recipient.recipient_name) {
+            this.addTopic(`${recipient.recipient_name} contract fraud investigations`);
+            this.addTopic(`${recipient.recipient_name} performance history government contracts`);
+        }
+
+        if (recipient.parent_recipient_name && recipient.parent_recipient_name !== recipient.recipient_name) {
+            this.addTopic(`${recipient.parent_recipient_name} subsidiary investigations`);
+        }
+
+        // Add location-based searches
+        if (recipient.location?.city_name && recipient.location?.state_code) {
+            this.addTopic(`government contractor investigations ${recipient.location.city_name} ${recipient.location.state_code}`);
+        }
+
+        // Add industry-specific searches
+        if (details.naics_hierarchy?.base_code?.description) {
+            this.addTopic(`contract fraud ${details.naics_hierarchy.base_code.description}`);
         }
     }
 

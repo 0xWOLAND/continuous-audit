@@ -63,16 +63,15 @@ router.post('/awards/:awardId/research', async (request, env: Env) => {
 
     const api = new USAspendingAPI(env.AWARDS_KV);
     const award = await api.getAward(awardId);
-    
+
     if (!award) {
         return new Response('Award not found', { status: 404 });
     }
 
     try {
         const deepSearch = new DeepSearch(env);
-        const searchContext = await deepSearch.searchAward(awardId);
+        const searchContext = await deepSearch.searchAward(awardId, award);
         
-        // Store the research results
         await env.AWARDS_KV.put(
             `research:${awardId}`, 
             JSON.stringify(searchContext)

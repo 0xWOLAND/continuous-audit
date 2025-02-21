@@ -1,29 +1,50 @@
 import * as dotenv from 'dotenv';
-import { AwardSearchContext } from '../src/types';
+import { AwardSearchContext, ProcessedAward } from '../src/types';
+import worker from '../src/worker';
+import { AWARDS_KV } from './mock-kv';
+import { mockScheduledEvent } from './mock-scheduled-event';
 dotenv.config();
 
 interface Award {
-    id: string;
-    // Add other award properties as needed
+    basicInfo: {
+        recipientName: string;
+        awardAmount: number;
+    };
+}
+
+interface AwardsResponse {
+    [key: string]: Award;
 }
 
 async function testRiskScores() {
     const workerUrl = 'http://localhost:8787';
-    console.log('Fetching risk scores for all awards...');
+    console.log('Starting risk score analysis...');
     
     try {
-        // First get all awards from the worker endpoint
+        // First trigger a manual fetch of awards
+        console.log('\nTriggering award fetch...');
+        const fetchResponse = await fetch(`${workerUrl}/fetch-awards`, {
+            method: 'POST'
+        });
+        
+        if (!fetchResponse.ok) {
+            throw new Error(`Failed to trigger award fetch: ${fetchResponse.status}`);
+        }
+        console.log('Award fetch completed');
+
+        // Now proceed with the rest of the test
         const awardsResponse = await fetch(`${workerUrl}/awards`);
         if (!awardsResponse.ok) {
             throw new Error(`Failed to fetch awards: ${awardsResponse.status}`);
         }
-        const awards = await awardsResponse.json() as Record<string, Award>;
+        const awards = await awardsResponse.json() as AwardsResponse;
         
         console.log(`Found ${Object.keys(awards).length} awards`);
         
         // For each award, get its research results
         for (const awardId of Object.keys(awards)) {
             console.log(`\nChecking research for award: ${awardId}`);
+            const award = awards[awardId];
             
             try {
                 const researchResponse = await fetch(`${workerUrl}/awards/${awardId}/research`);
@@ -39,7 +60,7 @@ async function testRiskScores() {
                         continue;
                     }
                     const research = await triggerResponse.json() as AwardSearchContext;
-                    displayResearchResults(research);
+                    displayRiskAnalysis(research, award);
                     continue;
                 }
                 
@@ -49,7 +70,7 @@ async function testRiskScores() {
                 }
                 
                 const research = await researchResponse.json() as AwardSearchContext;
-                displayResearchResults(research);
+                displayRiskAnalysis(research, award);
                 
             } catch (error) {
                 console.error(`Error processing award ${awardId}:`, error);
@@ -61,17 +82,19 @@ async function testRiskScores() {
     }
 }
 
-function displayResearchResults(research: AwardSearchContext) {
-    console.log('\nRisk Assessment:');
-    console.log('---------------');
-    console.log('Summary:', research.summary);
+function displayRiskAnalysis(research: AwardSearchContext, award: Award) {
+    const riskLevel = research.findings.reduce((max, f) => 
+        Math.max(max, f.analysis.reasoning.riskLevel), 0);
+    
+    console.log('\nRisk Analysis:');
+    console.log('-------------');
+    console.log(`Award ID: ${research.originalAwardId}`);
+    console.log(`Recipient: ${award.basicInfo.recipientName}`);
+    console.log(`Amount: $${award.basicInfo.awardAmount.toLocaleString()}`);
+    console.log(`Risk Level: ${riskLevel}/5`);
     
     if (research.findings.length > 0) {
-        const highestRisk = research.findings
-            .reduce((max, finding) => Math.max(max, finding.analysis.reasoning.riskLevel), 0);
-        
-        console.log('\nHighest Risk Level:', highestRisk);
-        console.log('Key Findings:');
+        console.log('\nKey Findings:');
         research.findings
             .sort((a, b) => b.relevanceScore - a.relevanceScore)
             .slice(0, 3)
@@ -82,10 +105,12 @@ function displayResearchResults(research: AwardSearchContext) {
             });
     }
     
-    console.log('\nFinal Conclusions:');
-    research.reasoningChain.finalConclusions.forEach((conclusion, i) => {
-        console.log(`${i + 1}. ${conclusion}`);
-    });
+    if (research.reasoningChain.finalConclusions.length > 0) {
+        console.log('\nFinal Conclusions:');
+        research.reasoningChain.finalConclusions.forEach((conclusion, i) => {
+            console.log(`${i + 1}. ${conclusion}`);
+        });
+    }
     
     console.log('\n' + '='.repeat(80));
 }
