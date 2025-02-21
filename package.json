@@ -1,5 +1,5 @@
 {
-  "name": "usa-spending-poller",
+  "name": "continuous-audit",
   "version": "1.0.0",
   "description": "Cloudflare Worker that polls USA Spending API for awards data",
   "type": "module",

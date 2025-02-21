@@ -4,7 +4,6 @@ import { PROMPTS } from '../prompts';
 import { withBackoff } from '../utils';
 import { z } from 'zod';
 
-// Define schemas for analysis responses
 const AnalysisResponse = z.object({
     initialThoughts: z.string(),
     questions: z.array(z.string()),
@@ -88,7 +87,6 @@ export class DeepSearch {
 
             clearTimeout(timeout);
 
-            // Combine results
             const combinedContent = results.join('\n');
             if (schema) {
                 try {
@@ -186,7 +184,6 @@ export class DeepSearch {
     private async analyzeForFraud(content: string, awardId: string, awardDetails: any) {
         console.log(`\nAnalyzing content and award details for fraud indicators (Award: ${awardId})`);
         
-        // Construct enriched context from award details
         const enrichedContext = this.buildEnrichedContext(awardDetails);
         const combinedContent = `
 Award Details:
@@ -208,7 +205,6 @@ ${content}
 
         const model = 'gpt-4-turbo-preview';
         
-        // Use AnalysisResponse schema for initial analysis
         const analysis = await this.analyze(
             PROMPTS.INITIAL_REASONING(awardId, enrichedContext), 
             combinedContent, 
@@ -227,7 +223,6 @@ ${content}
             };
         }
 
-        // Add investigation questions from analysis
         this.addQuestions(analysis.questions.map(q => ({ 
             question: q,
             priority: analysis.riskLevel
@@ -287,61 +282,67 @@ ${this.formatLocation(details.place_of_performance)}
     }
 
     async searchAward(awardId: string, awardDetails?: any): Promise<AwardSearchContext> {
-        console.log(`Starting research for award: ${awardId}`);
+        console.log(`\n=== Starting research for award: ${awardId} ===`);
         const startTime = Date.now();
-        const context: AwardSearchContext = {
-            originalAwardId: awardId,
-            findings: [],
-            extractedInfo: {},
-            reasoningChain: { steps: [], finalConclusions: [] },
-            summary: ''
-        };
-
+        
         try {
-            console.log('Checking for existing research...');
+            console.log('Step 1: Checking cache...');
             const existingResearch = await this.env.AWARDS_KV.get(`research:${awardId}`);
             if (existingResearch) {
-                console.log('Found existing research, returning cached results');
                 return JSON.parse(existingResearch);
             }
 
-            console.log('Starting new research...');
-            this.addTopic(awardId);
+            console.log('Step 2: Initializing search...');
+            const context: AwardSearchContext = {
+                originalAwardId: awardId,
+                findings: [],
+                extractedInfo: {},
+                reasoningChain: { steps: [], finalConclusions: [] },
+                summary: ''
+            };
 
-            // Add specific investigation topics based on award details
+            console.log('Step 3: Adding search topics...');
+            this.addTopic(awardId);
             if (awardDetails) {
                 this.addInvestigationTopics(awardDetails);
             }
 
+            console.log('Step 4: Starting URL exploration...');
             while (!this.shouldStopSearch(startTime)) {
+                console.log('Exploring topics for URLs...');
                 const urls = await this.exploreTopics(awardId);
-                if (urls.length === 0) {
-                    console.log('No more URLs to explore');
-                    break;
-                }
+                if (urls.length === 0) break;
 
+                console.log('Processing discovered URLs...');
                 await this.processUrls(urls, context, awardDetails);
             }
 
-            console.log('Generating final summary...');
+            console.log('Step 5: Generating final summary...');
             const summary = await this.analyze(
                 'Summarize all findings and provide final conclusions about potential fraud risks.',
                 JSON.stringify(context.findings),
                 'gpt-4-turbo-preview'
             );
+
+            console.log('Step 6: Storing results...');
             context.summary = summary;
             context.reasoningChain.finalConclusions = summary.split('\n').filter(Boolean);
 
-            console.log('Storing research results...');
             await this.env.AWARDS_KV.put(
                 `research:${awardId}`,
                 JSON.stringify(context)
             );
 
-            console.log(`Research completed for award: ${awardId}`);
+            console.log('=== Research completed successfully ===');
             return context;
+
         } catch (error) {
-            console.error('Search failed:', error);
+            console.error('=== Research failed ===');
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                timeElapsed: Date.now() - startTime
+            });
             throw error;
         }
     }
@@ -421,7 +422,7 @@ ${this.formatLocation(details.place_of_performance)}
         if (!this.queue.topics.has(query)) {
             this.queue.topics.set(query, {
                 query,
-                priority: 5, // High priority for initial search queries
+                priority: 5,
                 urls: new Set(),
                 explored: false
             });
@@ -430,11 +431,12 @@ ${this.formatLocation(details.place_of_performance)}
     }
 
     private addInvestigationTopics(awardDetails: any) {
+        console.log('Adding investigation topics...');
+        console.log(awardDetails);
         const details = awardDetails?.details || {};
         const recipient = details?.recipient || {};
         const executives = details?.executive_details || {};
 
-        // Company searches
         if (recipient.recipient_name) {
             const companyName = recipient.recipient_name;
             this.addTopic(`${companyName} fraud`);
@@ -442,13 +444,11 @@ ${this.formatLocation(details.place_of_performance)}
             this.addTopic(`${companyName} lawsuit`);
             this.addTopic(`${companyName} debarment`);
             
-            // Add location context
             if (recipient.location?.city_name && recipient.location?.state_code) {
                 this.addTopic(`${companyName} ${recipient.location.city_name} ${recipient.location.state_code} violations`);
             }
         }
 
-        // Executive searches
         if (executives.officers) {
             for (const officer of executives.officers) {
                 if (officer.name) {
@@ -458,14 +458,12 @@ ${this.formatLocation(details.place_of_performance)}
             }
         }
 
-        // Parent company searches
         if (recipient.parent_recipient_name && recipient.parent_recipient_name !== recipient.recipient_name) {
             const parentName = recipient.parent_recipient_name;
             this.addTopic(`${parentName} fraud`);
             this.addTopic(`${parentName} subsidiaries investigation`);
         }
 
-        // Industry searches for high risk
         if (details.risk_score > 3 && details.naics_hierarchy?.base_code?.description) {
             const industry = details.naics_hierarchy.base_code.description;
             this.addTopic(`${industry} ${recipient.recipient_name} violations`);

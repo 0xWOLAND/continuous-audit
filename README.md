@@ -2,6 +2,8 @@
 
 An AI-powered system for detecting potential fraud indicators in federal contract awards.
 
+The deep research system works by recursively investigating federal contracts for potential fraud indicators. Starting with an award ID, it generates initial search topics about the company, its executives, and location, then uses Firecrawl to search and crawl relevant web pages. Each discovered page is analyzed by GPT-4 for fraud indicators across multiple categories (like unusual pricing, shell company signs, or geographic risks), with content split into manageable chunks for processing. When the analysis reveals concerning patterns (risk level > 1), those findings are stored and GPT-4 generates follow-up questions that feed back into the search queue as new topics to investigate, creating a recursive research loop that continues until hitting limits. 
+
 ## API Endpoints
 
 ### Awards
@@ -112,5 +114,42 @@ Reasoning: Based on the provided award information and related content about awa
 ### Conclusion
 Based on the initial review, there are no glaring indicators of fraud, but several areas, such as contract modification patterns, the relationship with other contractors, and the justification of the cost-plus award fee structure, would benefit from a deeper investigation to fully assess the risk of fraud. Further, verifying the legitimacy and performance history of JBS International, Inc., along with a detailed review of the contract's financial transactions, would be prudent steps in a comprehensive fraud risk assessment.
 Confidence: 0.4
+```
 
-Final Conclusions:
+## Development Scripts
+
+### Running the Application
+```bash
+# Start local development server with scheduled tasks enabled
+pnpm run dev
+
+# Deploy to production
+pnpm run deploy
+
+# Type check the codebase
+pnpm run types
+```
+
+### Testing
+```bash
+# Run fetch awards test
+pnpm run test-fetch
+
+# Run worker test (starts server and runs fetch test)
+pnpm run test-worker
+
+# Run research tests
+pnpm run test:research
+
+# Run research tests in watch mode
+pnpm run test:research:watch
+
+# Run risk scoring tests
+pnpm run test:risk-scores
+```
+
+### Data Management
+```bash
+# Clear KV store in preview environment
+pnpm run clear-kv:preview
+```

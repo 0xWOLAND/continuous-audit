@@ -1,8 +1,17 @@
 export const PROMPTS = {
     INITIAL_REASONING: (awardId: string, enrichedContext: string) => `
-You are a federal contract investigator specializing in fraud detection. Review this award information and related content about award ${awardId}.
+Analyze this federal contract award (${awardId}) for potential fraud indicators.
 
-Consider these specific risk factors:
+Return your analysis in this exact JSON format:
+{
+    "initialThoughts": "Your overall analysis of the award and potential fraud risks",
+    "questions": ["List of specific questions to investigate further"],
+    "indicators": ["List of specific fraud indicators found"],
+    "riskLevel": number, // 1-5 where 5 is highest risk
+    "justification": "Detailed explanation of the risk level"
+}
+
+Consider:
 1. Unusual pricing or competition patterns
 2. Shell company indicators
 3. Geographic risk factors
@@ -13,8 +22,7 @@ Consider these specific risk factors:
 
 Award Context:
 ${enrichedContext}
-
-What are your initial thoughts about potential fraud indicators? Be specific and reference the data.`,
+`,
 
     GENERATE_INVESTIGATION_QUESTIONS: (awardId: string) => `
 Based on what we know about award ${awardId}, generate targeted questions for investigation.
