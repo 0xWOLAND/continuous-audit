@@ -1,4 +1,4 @@
-import { USAspendingAPI } from './services/USASpendingAPI';
+import { USAspendingAPI } from '../src/services/USASpendingAPI';
 
 // Mock KV namespace for testing
 const mockKV: KVNamespace = {

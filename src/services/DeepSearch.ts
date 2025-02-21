@@ -19,6 +19,10 @@ export class DeepSearch {
     private visitedUrls: Set<string> = new Set();
 
     constructor(private env: Env) {
+        console.log('Initializing DeepSearch with environment:', {
+            hasFirecrawlKey: !!env.FIRECRAWL_API_KEY,
+            hasOpenAIKey: !!env.OPENAI_API_KEY
+        });
         this.firecrawl = new FirecrawlApp({ apiKey: env.FIRECRAWL_API_KEY });
         this.queue = {
             topics: new Map(),
@@ -32,13 +36,21 @@ export class DeepSearch {
         model = 'gpt-4-turbo-preview',
         schema?: T
     ): Promise<T extends z.ZodType ? z.infer<T> : string> {
+        console.log(`\nAnalyzing with model ${model}`, {
+            promptLength: prompt.length,
+            contextLength: context.length,
+            hasSchema: !!schema
+        });
+
         const emptyResponse = schema ? { questions: [] } as any : '';
         
         if (!context?.trim()) {
+            console.log('Empty context provided, returning empty response');
             return emptyResponse;
         }
 
         try {
+            console.log('Making OpenAI API request...');
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -67,9 +79,11 @@ export class DeepSearch {
             const content = responseData.choices[0].message.content;
             
             if (!content?.trim()) {
+                console.log('Empty response from OpenAI');
                 return emptyResponse;
             }
 
+            console.log('Successfully received analysis response');
             if (schema) {
                 return schema.parse(JSON.parse(content)) as any;
             }
@@ -83,6 +97,7 @@ export class DeepSearch {
     private async crawlUrl(url: string): Promise<SearchResult[]> {
         console.log(`\nCrawling URL: ${url}`);
         try {
+            console.log('Making Firecrawl request...');
             const response = await withBackoff(
                 () => this.firecrawl.crawlUrl(url, {
                     limit: DeepSearch.LIMITS.MAX_PAGES_PER_SITE,
@@ -117,6 +132,7 @@ export class DeepSearch {
 
             console.log(`\nSearching topic: ${query}`);
             try {
+                console.log('Making Firecrawl search request...');
                 const response = await withBackoff(() => 
                     this.firecrawl.search(query, { limit: DeepSearch.LIMITS.MAX_RESULTS_PER_QUERY })
                 );
@@ -128,16 +144,19 @@ export class DeepSearch {
                         allUrls.add(url);
                     }
                 });
+                console.log(`Found ${response.data?.length || 0} results for topic "${query}"`);
             } catch (error) {
                 console.error(`Failed to explore topic: ${query}`, error);
             }
             topic.explored = true;
         }
 
+        console.log(`Total unique URLs found: ${allUrls.size}`);
         return Array.from(allUrls);
     }
 
     private addQuestions(questions: Array<{ question: string; priority: number }>) {
+        console.log('\nAdding investigation questions...');
         for (const q of questions) {
             if (!this.queue.topics.has(q.question)) {
                 this.queue.topics.set(q.question, {
@@ -152,7 +171,9 @@ export class DeepSearch {
     }
 
     private async analyzeForFraud(content: string, awardId: string) {
+        console.log(`\nAnalyzing content for fraud indicators (Award: ${awardId})`);
         if (!content?.trim()) {
+            console.log('Empty content provided, skipping analysis');
             return {
                 initialThoughts: '',
                 questions: [],
@@ -164,13 +185,14 @@ export class DeepSearch {
 
         const model = 'gpt-4-turbo-preview';
         
-        // Run initial analysis and indicators in parallel
+        console.log('Running initial parallel analyses...');
         const [initialThoughts, indicators] = await Promise.all([
             this.analyze(PROMPTS.INITIAL_REASONING(awardId), content, model),
             this.analyze(PROMPTS.IDENTIFY_FRAUD_INDICATORS(awardId), content, model)
         ]);
 
         if (!initialThoughts) {
+            console.log('Initial analysis failed');
             return {
                 initialThoughts: 'Analysis failed',
                 questions: [],
@@ -180,7 +202,7 @@ export class DeepSearch {
             };
         }
 
-        // Run remaining analyses in parallel
+        console.log('Running secondary parallel analyses...');
         const [questionsResponse, riskAssessment] = await Promise.all([
             this.analyze(
                 PROMPTS.GENERATE_INVESTIGATION_QUESTIONS(awardId),
@@ -198,6 +220,12 @@ export class DeepSearch {
 
         this.addQuestions(questionsResponse.questions);
 
+        console.log('Analysis complete:', {
+            questionCount: questionsResponse.questions.length,
+            indicatorCount: indicators.split('\n').filter(Boolean).length,
+            riskLevel: riskAssessment.riskLevel
+        });
+
         return {
             initialThoughts,
             questions: questionsResponse.questions.map(q => q.question),
@@ -208,6 +236,7 @@ export class DeepSearch {
     }
 
     async searchAward(awardId: string): Promise<AwardSearchContext> {
+        console.log(`\nStarting award search for ${awardId}`);
         const startTime = Date.now();
         const context: AwardSearchContext = {
             originalAwardId: awardId,
@@ -218,17 +247,27 @@ export class DeepSearch {
         };
 
         try {
-            // Start with the award ID as initial topic
+            console.log('Checking for existing research...');
+            const existingResearch = await this.env.AWARDS_KV.get(`research:${awardId}`);
+            if (existingResearch) {
+                console.log('Found existing research, returning cached results');
+                return JSON.parse(existingResearch);
+            }
+
+            console.log('Starting new research...');
             this.addTopic(awardId);
 
             while (!this.shouldStopSearch(startTime)) {
                 const urls = await this.exploreTopics(awardId);
-                if (urls.length === 0) break;
+                if (urls.length === 0) {
+                    console.log('No more URLs to explore');
+                    break;
+                }
 
                 await this.processUrls(urls, context);
             }
 
-            // Generate final summary
+            console.log('Generating final summary...');
             const summary = await this.analyze(
                 'Summarize all findings and provide final conclusions about potential fraud risks.',
                 JSON.stringify(context.findings),
@@ -237,6 +276,13 @@ export class DeepSearch {
             context.summary = summary;
             context.reasoningChain.finalConclusions = summary.split('\n').filter(Boolean);
 
+            console.log('Storing research results...');
+            await this.env.AWARDS_KV.put(
+                `research:${awardId}`,
+                JSON.stringify(context)
+            );
+
+            console.log('Search completed successfully');
             return context;
         } catch (error) {
             console.error('Search failed:', error);
@@ -245,24 +291,43 @@ export class DeepSearch {
     }
 
     private shouldStopSearch(startTime: number): boolean {
-        return Date.now() - startTime > DeepSearch.LIMITS.MAX_SEARCH_TIME_MS ||
-               this.queue.visitedUrls.size >= DeepSearch.LIMITS.MAX_URLS;
+        const timeElapsed = Date.now() - startTime;
+        const urlLimit = this.queue.visitedUrls.size >= DeepSearch.LIMITS.MAX_URLS;
+        const timeLimit = timeElapsed > DeepSearch.LIMITS.MAX_SEARCH_TIME_MS;
+        
+        if (urlLimit || timeLimit) {
+            console.log('Search stopping due to:', {
+                timeElapsed,
+                urlCount: this.queue.visitedUrls.size,
+                hitUrlLimit: urlLimit,
+                hitTimeLimit: timeLimit
+            });
+        }
+        
+        return urlLimit || timeLimit;
     }
 
     private async processUrls(urls: string[], context: AwardSearchContext) {
+        console.log(`\nProcessing ${urls.length} URLs...`);
         for (const url of urls) {
-            if (this.queue.visitedUrls.has(url)) continue;
+            if (this.queue.visitedUrls.has(url)) {
+                console.log(`Skipping already visited URL: ${url}`);
+                continue;
+            }
             this.queue.visitedUrls.add(url);
 
             const pages = await this.crawlUrl(url);
+            console.log(`Processing ${pages.length} pages from ${url}`);
             await Promise.all(pages.map(page => this.processPage(page, context)));
         }
     }
 
     private async processPage(page: SearchResult, context: AwardSearchContext) {
+        console.log(`\nProcessing page: ${page.url}`);
         const analysis = await this.analyzeForFraud(page.content, context.originalAwardId);
         
         if (analysis.riskLevel > 1) {
+            console.log(`Found significant risk (${analysis.riskLevel}/5) at ${page.url}`);
             const relevanceScore = analysis.riskLevel / 5;
             
             context.findings.push({
@@ -286,6 +351,14 @@ export class DeepSearch {
                 evidence: analysis.indicators,
                 confidence: relevanceScore
             });
+
+            console.log('Updating KV store with new finding...');
+            await this.env.AWARDS_KV.put(
+                `research:${context.originalAwardId}`,
+                JSON.stringify(context)
+            );
+        } else {
+            console.log(`Low risk level (${analysis.riskLevel}/5), skipping...`);
         }
     }
 
