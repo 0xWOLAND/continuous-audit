@@ -1,6 +1,6 @@
 import { Env, SearchResult, AwardSearchContext, ResearchQueue, PageAnalysis } from '../types';
 import FirecrawlApp, { CrawlStatusResponse, FirecrawlDocument } from '@mendable/firecrawl-js';
-import { InvestigationQuestions, PROMPTS, RiskAssessment } from '../prompts';
+import { PROMPTS } from '../prompts';
 import { withBackoff } from '../utils';
 import { z } from 'zod';
 
@@ -20,18 +20,13 @@ export class DeepSearch {
         MAX_PAGES_PER_SITE: 5,
         MAX_TOPICS: 10,
         MAX_URLS: 5,
-        MAX_SEARCH_TIME_MS: 1000 * 60 * 15  // Reduced to 5 minutes
+        MAX_SEARCH_TIME_MS: 1000 * 60 * 15  
     } as const;
 
     private queue: ResearchQueue;
     private firecrawl: FirecrawlApp;
-    private visitedUrls: Set<string> = new Set();
 
     constructor(private env: Env) {
-        console.log('Initializing DeepSearch with environment:', {
-            hasFirecrawlKey: !!env.FIRECRAWL_API_KEY,
-            hasOpenAIKey: !!env.OPENAI_API_KEY
-        });
         this.firecrawl = new FirecrawlApp({ apiKey: env.FIRECRAWL_API_KEY });
         this.queue = {
             topics: new Map(),
@@ -46,84 +41,87 @@ export class DeepSearch {
         schema?: T
     ): Promise<T extends z.ZodType ? z.infer<T> : string> {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000);
+        const timeout = setTimeout(() => controller.abort(), 300000);
 
-        console.log(`\nAnalyzing with model ${model}`, {
-            promptLength: prompt.length,
-            contextLength: context.length,
-            hasSchema: !!schema
-        });
-
-        const emptyResponse = schema ? { questions: [] } as any : '';
-        
-        if (!context?.trim()) {
-            console.log('Empty context provided, returning empty response');
-            return emptyResponse;
-        }
+        const chunks = this.splitIntoChunks(context, 3000, 500);
 
         try {
-            console.log('Making OpenAI API request...');
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.env.OPENAI_API_KEY}`
-                },
-                body: JSON.stringify({
+            const results = await Promise.all(chunks.map(async (chunk, i) => {
+                const requestBody = {
                     model,
                     messages: [
                         { 
                             role: 'system', 
-                            content: schema ? 'You must respond with a valid JSON object that matches the specified schema.' : undefined
+                            content: schema ? 'You must respond with a valid JSON object.' : undefined
                         },
                         { 
                             role: 'user', 
-                            content: `${prompt}\n\n${context.slice(0, 6000)}` 
+                            content: `${prompt}\n\nAnalyze this part of the content:\n${chunk}` 
                         }
                     ].filter(Boolean),
                     temperature: 0,
-                    response_format: schema ? { 
-                        type: 'json_object'
-                    } : undefined
-                }),
-                signal: controller.signal
-            });
-            
+                    response_format: schema ? { type: 'json_object' } : undefined
+                };
+
+                const response = await withBackoff(async () => {
+                    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.env.OPENAI_API_KEY}`
+                        },
+                        body: JSON.stringify(requestBody),
+                        signal: controller.signal
+                    });
+
+                    if (!res.ok) {
+                        const error = await res.text();
+                        console.error(`OpenAI API error (${res.status}):`, error);
+                        throw new Error(`Analysis failed: ${res.status}`);
+                    }
+
+                    return res.json();
+                });
+
+                return response.choices[0].message.content;
+            }));
+
             clearTimeout(timeout);
 
-            if (!response.ok) {
-                throw new Error(`Analysis failed: ${response.status}`);
-            }
-
-            const responseData = await response.json() as { choices: Array<{ message: { content: string } }> };
-            const content = responseData.choices[0].message.content;
-            
-            if (!content?.trim()) {
-                console.log('Empty response from OpenAI');
-                return emptyResponse;
-            }
-
-            console.log('Successfully received analysis response');
+            // Combine results
+            const combinedContent = results.join('\n');
             if (schema) {
                 try {
-                    return schema.parse(JSON.parse(content)) as any;
+                    return schema.parse(JSON.parse(results[0])) as any;
                 } catch (error) {
-                    console.error('Failed to parse JSON response:', content);
+                    console.error('Failed to parse JSON response:', combinedContent);
                     throw error;
                 }
             }
-            return content as any;
+            return combinedContent as any;
+
         } catch (error) {
             clearTimeout(timeout);
             console.error('Analysis error:', error);
-            return emptyResponse;
+            return schema ? { questions: [] } as any : '';
         }
     }
 
+    private splitIntoChunks(text: string, size: number, overlap: number): string[] {
+        const chunks: string[] = [];
+        let index = 0;
+        
+        while (index < text.length) {
+            const chunk = text.slice(index, index + size);
+            chunks.push(chunk);
+            index += size - overlap;
+        }
+        
+        return chunks;
+    }
+
     private async crawlUrl(url: string): Promise<SearchResult[]> {
-        console.log(`\nCrawling URL: ${url}`);
         try {
-            console.log('Making Firecrawl request...');
             const response = await withBackoff(
                 () => this.firecrawl.crawlUrl(url, {
                     limit: DeepSearch.LIMITS.MAX_PAGES_PER_SITE,
@@ -131,14 +129,12 @@ export class DeepSearch {
                 })
             ) as CrawlStatusResponse;
 
-            const results = response.success ? (response.data || []).map((result: FirecrawlDocument) => ({
+            return response.success ? (response.data || []).map((result: FirecrawlDocument) => ({
                 url: result.url || url,
                 title: result.metadata?.title || '',
                 content: result.markdown || result.html || '',
                 score: 1
             })) : [];
-
-            return results;
         } catch (error) {
             console.error(`Crawl failed: ${url}`, error);
             return [];
@@ -147,17 +143,11 @@ export class DeepSearch {
 
     private async exploreTopics(awardId: string): Promise<string[]> {
         const allUrls = new Set<string>();
-        console.log(`\nExploring ${this.queue.topics.size} topics for award ${awardId}...`);
         
         for (const [query, topic] of this.queue.topics) {
-            if (topic.explored) {
-                console.log(`Skipping previously explored topic: ${query}`);
-                continue;
-            }
+            if (topic.explored) continue;
 
-            console.log(`\nSearching topic: ${query}`);
             try {
-                console.log('Making Firecrawl search request...');
                 const response = await withBackoff(() => 
                     this.firecrawl.search(query, { limit: DeepSearch.LIMITS.MAX_RESULTS_PER_QUERY })
                 );
@@ -169,14 +159,12 @@ export class DeepSearch {
                         allUrls.add(url);
                     }
                 });
-                console.log(`Found ${response.data?.length || 0} results for topic "${query}"`);
             } catch (error) {
                 console.error(`Failed to explore topic: ${query}`, error);
             }
             topic.explored = true;
         }
 
-        console.log(`Total unique URLs found: ${allUrls.size}`);
         return Array.from(allUrls);
     }
 
@@ -209,7 +197,6 @@ ${content}
         `.trim();
 
         if (!combinedContent?.trim()) {
-            console.log('Empty content provided, skipping analysis');
             return {
                 initialThoughts: '',
                 questions: [],
@@ -221,13 +208,15 @@ ${content}
 
         const model = 'gpt-4-turbo-preview';
         
-        console.log('Running initial parallel analyses...');
-        const [initialThoughts, indicators] = await Promise.all([
-            this.analyze(PROMPTS.INITIAL_REASONING(awardId, enrichedContext), combinedContent, model),
-            this.analyze(PROMPTS.IDENTIFY_FRAUD_INDICATORS(awardId, enrichedContext), combinedContent, model)
-        ]);
+        // Use AnalysisResponse schema for initial analysis
+        const analysis = await this.analyze(
+            PROMPTS.INITIAL_REASONING(awardId, enrichedContext), 
+            combinedContent, 
+            model,
+            AnalysisResponse
+        );
 
-        if (!initialThoughts) {
+        if (!analysis) {
             console.log('Initial analysis failed');
             return {
                 initialThoughts: 'Analysis failed',
@@ -238,37 +227,13 @@ ${content}
             };
         }
 
-        console.log('Running secondary parallel analyses...');
-        const [questionsResponse, riskAssessment] = await Promise.all([
-            this.analyze(
-                PROMPTS.GENERATE_INVESTIGATION_QUESTIONS(awardId),
-                `${initialThoughts}\n\nContext: ${content}`,
-                model,
-                InvestigationQuestions
-            ),
-            this.analyze(
-                PROMPTS.ASSESS_FRAUD_RISK(awardId),
-                `Initial Analysis: ${initialThoughts}\nIndicators: ${indicators}`,
-                model,
-                RiskAssessment
-            )
-        ]);
+        // Add investigation questions from analysis
+        this.addQuestions(analysis.questions.map(q => ({ 
+            question: q,
+            priority: analysis.riskLevel
+        })));
 
-        this.addQuestions(questionsResponse.questions);
-
-        console.log('Analysis complete:', {
-            questionCount: questionsResponse.questions.length,
-            indicatorCount: indicators.split('\n').filter(Boolean).length,
-            riskLevel: riskAssessment.riskLevel
-        });
-
-        return {
-            initialThoughts,
-            questions: questionsResponse.questions.map(q => q.question),
-            indicators: indicators.split('\n').filter(Boolean),
-            riskLevel: riskAssessment.riskLevel,
-            justification: riskAssessment.justification
-        };
+        return analysis;
     }
 
     private buildEnrichedContext(awardDetails: any): string {
@@ -322,7 +287,7 @@ ${this.formatLocation(details.place_of_performance)}
     }
 
     async searchAward(awardId: string, awardDetails?: any): Promise<AwardSearchContext> {
-        console.log(`\nStarting award search for ${awardId}`);
+        console.log(`Starting research for award: ${awardId}`);
         const startTime = Date.now();
         const context: AwardSearchContext = {
             originalAwardId: awardId,
@@ -373,7 +338,7 @@ ${this.formatLocation(details.place_of_performance)}
                 JSON.stringify(context)
             );
 
-            console.log('Search completed successfully');
+            console.log(`Research completed for award: ${awardId}`);
             return context;
         } catch (error) {
             console.error('Search failed:', error);
@@ -467,8 +432,9 @@ ${this.formatLocation(details.place_of_performance)}
     private addInvestigationTopics(awardDetails: any) {
         const details = awardDetails?.details || {};
         const recipient = details?.recipient || {};
+        const executives = details?.executive_details || {};
 
-        // Focus on company-specific searches
+        // Company searches
         if (recipient.recipient_name) {
             const companyName = recipient.recipient_name;
             this.addTopic(`${companyName} fraud`);
@@ -476,27 +442,33 @@ ${this.formatLocation(details.place_of_performance)}
             this.addTopic(`${companyName} lawsuit`);
             this.addTopic(`${companyName} debarment`);
             
-            // Add location context if available
+            // Add location context
             if (recipient.location?.city_name && recipient.location?.state_code) {
                 this.addTopic(`${companyName} ${recipient.location.city_name} ${recipient.location.state_code} violations`);
             }
         }
 
-        // Add parent company searches if different
+        // Executive searches
+        if (executives.officers) {
+            for (const officer of executives.officers) {
+                if (officer.name) {
+                    this.addTopic(`${officer.name} ${recipient.recipient_name} fraud`);
+                    this.addTopic(`${officer.name} contractor investigation`);
+                }
+            }
+        }
+
+        // Parent company searches
         if (recipient.parent_recipient_name && recipient.parent_recipient_name !== recipient.recipient_name) {
             const parentName = recipient.parent_recipient_name;
             this.addTopic(`${parentName} fraud`);
             this.addTopic(`${parentName} subsidiaries investigation`);
         }
 
-        // Only add industry searches if we have specific concerns
+        // Industry searches for high risk
         if (details.risk_score > 3 && details.naics_hierarchy?.base_code?.description) {
             const industry = details.naics_hierarchy.base_code.description;
             this.addTopic(`${industry} ${recipient.recipient_name} violations`);
         }
-    }
-
-    getVisitedUrls(): Set<string> {
-        return this.visitedUrls;
     }
 } 

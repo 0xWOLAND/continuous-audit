@@ -1,18 +1,3 @@
-import { z } from 'zod';
-
-export const InvestigationQuestions = z.object({
-    questions: z.array(z.object({
-        question: z.string(),
-        priority: z.number().min(1).max(5)  // 1-5 priority scale
-    }))
-});
-
-export const RiskAssessment = z.object({
-    riskLevel: z.number().min(1).max(5),
-    justification: z.string(),
-    keyFactors: z.array(z.string())
-});
-
 export const PROMPTS = {
     INITIAL_REASONING: (awardId: string, enrichedContext: string) => `
 You are a federal contract investigator specializing in fraud detection. Review this award information and related content about award ${awardId}.

@@ -1,6 +1,6 @@
 export async function withBackoff<T>(
     fn: () => Promise<T>, 
-    maxRetries = 30,
+    maxRetries = 10,  // Increase retries
     baseDelay = 1000,
     maxDelay = 32000 // Cap maximum delay at 32 seconds
 ): Promise<T> {
