@@ -19,6 +19,7 @@ function showStatus(message, isError = false) {
 
 // Helper function to format currency
 function formatCurrency(amount) {
+    if (!amount) return 'N/A';
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD'
@@ -27,6 +28,7 @@ function formatCurrency(amount) {
 
 // Helper function to format date
 function formatDate(dateString) {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -34,7 +36,7 @@ function formatDate(dateString) {
     });
 }
 
-// Function to trigger manual fetch of awards
+// Function to fetch awards
 async function fetchAwards() {
     try {
         loadingDiv.style.display = 'block';
@@ -46,24 +48,28 @@ async function fetchAwards() {
             throw new Error(`Backend server at ${API_BASE_URL} is not available. Please make sure it's running.`);
         }
 
-        // First trigger manual fetch
-        const fetchResponse = await fetch(`${API_BASE_URL}/fetch-awards`, {
-            method: 'POST'
-        });
-
-        if (!fetchResponse.ok) {
-            throw new Error(`Failed to trigger award fetch: ${fetchResponse.status}`);
-        }
-
-        showStatus('Successfully triggered awards fetch. Now loading awards...');
-
-        // Then get the awards
+        // Get the awards
         const awardsResponse = await fetch(`${API_BASE_URL}/awards`);
+        console.log('Awards response:', awardsResponse);
         if (!awardsResponse.ok) {
+            // If no awards found, trigger a manual fetch
+            if (awardsResponse.status === 404) {
+                const fetchResponse = await fetch(`${API_BASE_URL}/fetch-awards`, {
+                    method: 'POST'
+                });
+
+                if (!fetchResponse.ok) {
+                    throw new Error(`Failed to trigger award fetch: ${fetchResponse.status}`);
+                }
+
+                showStatus('No awards found. Triggered manual fetch. Please try again in a moment.');
+                return;
+            }
             throw new Error(`Failed to fetch awards: ${awardsResponse.status}`);
         }
 
         const awards = await awardsResponse.json();
+        console.log('Awards:', awards);
         displayAwards(awards);
         showStatus('Awards loaded successfully!');
     } catch (error) {
@@ -78,19 +84,28 @@ async function fetchAwards() {
 // Function to display awards in the table
 function displayAwards(awards) {
     awardsTableBody.innerHTML = '';
-    
+    if (!awards || Object.keys(awards).length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="8" class="no-data">No awards found</td>';
+        awardsTableBody.appendChild(row);
+        return;
+    }
+
     Object.entries(awards).forEach(([awardId, award]) => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${awardId}</td>
-            <td>${award.description || 'N/A'}</td>
-            <td>${formatCurrency(award.amount || 0)}</td>
-            <td>${award.recipient_name || 'N/A'}</td>
-            <td>${award.action_date ? formatDate(award.action_date) : 'N/A'}</td>
+            <td>${award.basicInfo?.recipientName || 'N/A'}</td>
+            <td>${formatCurrency(award.basicInfo?.awardAmount) || 'N/A'}</td>
+            <td>${formatDate(award.basicInfo?.awardDate) || 'N/A'}</td>
+            <td>${award.details?.description || 'N/A'}</td>
+            <td>${award.details?.category || 'N/A'}</td>
+            <td>${award.details?.type_description || 'N/A'}</td>
+            <td>${award.details?.awarding_agency?.toptier_agency?.name || 'N/A'}</td>
         `;
         awardsTableBody.appendChild(row);
     });
 }
 
 // Event Listeners
-fetchButton.addEventListener('click', fetchAwards); 
+fetchButton.addEventListener('click', fetchAwards);
