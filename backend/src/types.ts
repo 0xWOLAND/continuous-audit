@@ -1,7 +1,39 @@
 export interface Env {
     AWARDS_KV: KVNamespace;
+    RESEARCH_KV: KVNamespace;
     FIRECRAWL_API_KEY: string;
     OPENAI_API_KEY: string;
+}
+
+export interface AwardBasicInfo {
+    recipientName: string;
+    awardAmount: number;
+    awardDate: string;
+}
+
+export interface ProcessedAward {
+    basicInfo: AwardBasicInfo;
+    details: any;
+    transactions: any[];
+}
+
+export interface RawAwardInfo {
+    internal_id: number;
+    'Award ID': string;
+    'Recipient Name': string;
+    'Award Amount': number | string;
+    'Award Date': string | null;
+    generated_internal_id: string;
+}
+
+export interface RawAward {
+    award_info: RawAwardInfo;
+    award_details: {
+        date_signed?: string;
+        [key: string]: any;
+    };
+    transactions: any[];
+    transaction_count: number;
 }
 
 export interface SearchResult {

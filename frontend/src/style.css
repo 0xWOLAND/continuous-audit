@@ -1,0 +1,630 @@
+body {
+    font-family: Arial, sans-serif;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+.container {
+    margin-top: 20px;
+}
+#fetchButton {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 20px;
+}
+#fetchButton:hover {
+    background-color: #0056b3;
+}
+#status {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 4px;
+}
+.success {
+    background-color: #d4edda;
+    color: #155724;
+}
+.error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+th {
+    background-color: #f8f9fa;
+}
+tr:hover {
+    background-color: #f5f5f5;
+}
+.loading {
+    display: none;
+    margin: 20px 0;
+}
+
+/* Research Results Styling */
+.research-results {
+    color: #333;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.research-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.award-info h3 {
+    margin: 0 0 8px 0;
+    color: #2c3e50;
+}
+
+.award-id {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.risk-indicator {
+    text-align: center;
+}
+
+.risk-label {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.risk-meter {
+    padding: 12px 24px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 1.2em;
+    color: white;
+}
+
+.risk-max {
+    opacity: 0.8;
+    font-size: 0.8em;
+}
+
+.risk-1 { background-color: #2ecc71; }
+.risk-2 { background-color: #27ae60; }
+.risk-3 { background-color: #f1c40f; }
+.risk-4 { background-color: #e67e22; }
+.risk-5 { background-color: #e74c3c; }
+
+.research-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.research-section h4 {
+    margin: 0 0 16px 0;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.research-section h4 i {
+    color: #3498db;
+}
+
+.research-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+    .research-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.initial-thoughts {
+    line-height: 1.6;
+}
+
+.risk-indicators, .investigation-areas {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.risk-indicators li, .investigation-areas li {
+    padding: 8px 0;
+    line-height: 1.5;
+    position: relative;
+    padding-left: 24px;
+}
+
+.risk-indicators li::before {
+    content: "!";
+    position: absolute;
+    left: 0;
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.investigation-areas li::before {
+    content: "?";
+    position: absolute;
+    left: 0;
+    color: #3498db;
+    font-weight: bold;
+}
+
+.risk-justification {
+    line-height: 1.6;
+    padding: 16px;
+    background: white;
+    border-radius: 4px;
+    border-left: 4px solid #3498db;
+}
+
+.research-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9em;
+    color: #666;
+    padding-top: 16px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.source-info a {
+    color: #3498db;
+    text-decoration: none;
+}
+
+.source-info a:hover {
+    text-decoration: underline;
+}
+
+/* Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-content {
+    background-color: #fff;
+    margin: 2% auto;
+    padding: 32px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    max-width: 1200px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Close button */
+.close {
+    position: fixed;
+    right: calc(5% + 20px);
+    top: calc(2% + 20px);
+    width: 40px;
+    height: 40px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1001;
+}
+
+.close:hover {
+    background: #f8f9fa;
+    color: #333;
+    transform: scale(1.1);
+}
+
+.close:active {
+    transform: scale(0.95);
+}
+
+/* Modal scrollbar */
+.modal-content::-webkit-scrollbar {
+    width: 10px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 5px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 5px;
+    border: 2px solid #f1f1f1;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+    overflow: hidden;
+}
+
+/* Research content layout */
+.research-content {
+    display: flex;
+    gap: 24px;
+    margin: 20px 0;
+}
+
+.research-main {
+    flex: 1;
+    min-width: 0; /* Prevents flex item from overflowing */
+}
+
+.findings-sidebar {
+    width: 300px;
+    flex-shrink: 0;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.findings-sidebar h4 {
+    margin: 0 0 16px 0;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.findings-list {
+    max-height: 600px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+/* Scrollbar styling */
+.findings-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.findings-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.findings-list::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.findings-list::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Updated Finding Card Styles */
+.finding-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.finding-card .finding-header {
+    padding: 16px;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.finding-card .finding-header:hover {
+    background: #e9ecef;
+}
+
+.finding-card .finding-header.collapsed {
+    border-bottom: none;
+}
+
+.finding-source-content {
+    padding: 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.source-text {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 15px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    font-size: 0.9em;
+    line-height: 1.6;
+    margin-top: 10px;
+}
+
+.finding-analysis {
+    padding: 20px;
+}
+
+.finding-analysis h5 {
+    color: #2c3e50;
+    margin: 0 0 15px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.analysis-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.analysis-section:last-child {
+    margin-bottom: 0;
+}
+
+.analysis-section h6 {
+    color: #2c3e50;
+    margin: 0 0 10px 0;
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+.analysis-section p {
+    margin: 0;
+    line-height: 1.6;
+    color: #444;
+}
+
+.analysis-section ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #444;
+}
+
+.analysis-section li {
+    margin: 5px 0;
+}
+
+.finding-footer {
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.source-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.relevance-score {
+    font-size: 0.9em;
+    color: #666;
+    font-weight: 500;
+}
+
+/* Scrollbar styling for source text */
+.source-text::-webkit-scrollbar {
+    width: 8px;
+}
+
+.source-text::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.source-text::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.source-text::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Findings container adjustments */
+.findings-container {
+    max-height: none;
+    overflow-y: visible;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .research-content {
+        flex-direction: column;
+    }
+
+    .findings-sidebar {
+        width: 100%;
+    }
+
+    .findings-list {
+        max-height: 400px;
+    }
+}
+
+@media (max-width: 768px) {
+    .modal-content {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+    }
+
+    .close {
+        right: 20px;
+        top: 20px;
+    }
+}
+
+/* Add these styles for the research status */
+.status-in-progress {
+    color: #3498db;
+    animation: pulse 1.5s infinite;
+}
+
+.status-complete {
+    color: #2ecc71;
+}
+
+.status-failed {
+    color: #e74c3c;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+/* Style for buttons with icons */
+.research-btn, .show-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.research-btn {
+    background-color: #3498db;
+    color: white;
+}
+
+.research-btn:hover {
+    background-color: #2980b9;
+}
+
+.show-btn {
+    background-color: #2ecc71;
+    color: white;
+    margin-right: 8px;
+}
+
+.show-btn:hover {
+    background-color: #27ae60;
+}
+
+.research-btn:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+}
+
+/* Add spacing between buttons in the actions column */
+td:last-child {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+/* Risk Badge Styles */
+.risk-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    gap: 6px;
+}
+
+.risk-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+/* Risk Level Colors */
+.risk-1 {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #2e7d32;
+}
+.risk-1 .risk-dot { background-color: #2e7d32; }
+
+.risk-2 {
+    background-color: rgba(156, 204, 101, 0.1);
+    color: #558b2f;
+}
+.risk-2 .risk-dot { background-color: #558b2f; }
+
+.risk-3 {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #f57c00;
+}
+.risk-3 .risk-dot { background-color: #f57c00; }
+
+.risk-4 {
+    background-color: rgba(255, 152, 0, 0.1);
+    color: #e65100;
+}
+.risk-4 .risk-dot { background-color: #e65100; }
+
+.risk-5 {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: #c62828;
+}
+.risk-5 .risk-dot { background-color: #c62828; }

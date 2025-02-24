@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Federal Awards Dashboard</title>
+    <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+    <h1>Federal Awards Dashboard</h1>
+    <div class="container">
+        <div id="status" style="display: none;"></div>
+        <div id="loading" style="display: none;">Loading...</div>
+        <h2>Awards</h2>
+        <table id="awardsTable">
+            <thead>
+                <tr>
+                    <th>Award ID</th>
+                    <th>Recipient Name</th>
+                    <th>Award Amount</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>Agency</th>
+                    <th>Risk Level</th>
+                    <th>Research</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="awardsTableBody">
+            </tbody>
+        </table>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html> 

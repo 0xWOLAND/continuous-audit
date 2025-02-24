@@ -1,0 +1,25 @@
+{
+  "name": "usaspending-proxy",
+  "version": "1.0.0",
+  "description": "Simple proxy server for usaspending.gov",
+  "main": "api/proxy.js",
+  "scripts": {
+    "start": "vercel dev --listen 3001",
+    "deploy": "vercel deploy --prod",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  },
+  "packageManager": "pnpm@8.15.3",
+  "engines": {
+    "node": ">=16",
+    "pnpm": ">=8"
+  }
+} 

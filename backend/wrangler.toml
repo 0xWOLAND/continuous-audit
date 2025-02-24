@@ -7,5 +7,13 @@ binding = "AWARDS_KV"
 id = "1bac179428b94161abf6c9fcb97991eb"
 preview_id = "de5408a1783e4660802d416a3c2fddb7"
 
+[[kv_namespaces]]
+binding = "RESEARCH_KV"
+id = "26c5d9f4319a41499b0e18cad62dc368"
+preview_id = "82c68b11b86644eeac933619d8462f83"
+
+[observability]
+enabled = true
+
 [triggers]
 crons = ["0 */6 * * *"] 

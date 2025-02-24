@@ -1,4 +1,5 @@
 import type { KVNamespace } from '@cloudflare/workers-types';
+import { withBackoff } from '../utils';
 
 interface Award {
   "Award ID": string;
@@ -29,20 +30,24 @@ interface TransactionResponse {
 }
 
 export class USAspendingAPI {
-  private readonly BASE_URL: string = "https://api.usaspending.gov/api/v2";
+  private readonly BASE_URL: string;
   private kv: KVNamespace;
 
-  constructor(kv: KVNamespace) {
+  constructor(kv: KVNamespace, baseUrl?: string) {
     this.kv = kv;
+    this.BASE_URL = baseUrl || "https://api.usaspending.gov/api/v2";
   }
 
   async fetchAwards(): Promise<APIResponse<Award> | null> {
     const url = this.BASE_URL + "/search/spending_by_award/";
-    const payload = {
+    const allResults: Award[] = [];
+
+    for (let page = 1; page <= 10; page++) {
+      const payload = {
       filters: {
         agencies: [
           {
-            type: "awarding",
+            type: "awarding", 
             tier: "toptier",
             name: "Department of Health and Human Services"
           }
@@ -52,31 +57,38 @@ export class USAspendingAPI {
       fields: ["Award ID", "Recipient Name", "Award Amount", "Award Date", "generated_internal_id"],
       order: "desc",
       limit: 100,
-      page: 1
-    };
+          page: page
+        };
 
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      return await response.json() as APIResponse<Award>;
-    } catch (error) {
-      console.error("Error fetching awards:", error instanceof Error ? error.message : error);
-      return null;
-    }
+        try {
+          const response = await withBackoff(() => fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
+          }));
+          
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          const data = await response.json() as APIResponse<Award>;
+          
+          if (data.results) {
+            allResults.push(...data.results);
+          }
+        } catch (error) {
+          console.error(`Error fetching awards page ${page}:`, error instanceof Error ? error.message : error);
+          continue;
+        }
+      }
+
+      return { results: allResults };
   }
 
   async fetchAwardDetails(awardId: string) {
     const url = this.BASE_URL + `/awards/${awardId}/`;
     
     try {
-      const response = await fetch(url);
+      const response = await withBackoff(() => fetch(url));
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return await response.json();
     } catch (error) {
@@ -100,13 +112,13 @@ export class USAspendingAPI {
       };
 
       try {
-        const response = await fetch(url, {
+        const response = await withBackoff(() => fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
-        });
+        }));
 
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json() as TransactionResponse;
@@ -154,8 +166,7 @@ export class USAspendingAPI {
         transactions: transactions
       };
 
-      // Store in KV
-      await this.kv.put(awardId, JSON.stringify(processedAward));
+      await withBackoff(() => this.kv.put(awardId, JSON.stringify(processedAward)));
 
       return {
         award_info: award,
@@ -185,16 +196,15 @@ export class USAspendingAPI {
       }
     }
 
-    console.log("Processed awards:", processedAwards);
     return processedAwards;
   }
 
   async getAllAwards() {
-    const { keys } = await this.kv.list();
+    const { keys } = await withBackoff(() => this.kv.list());
     const awards: Record<string, ProcessedAward> = {};
     
     for (const key of keys) {
-      const award = await this.kv.get<ProcessedAward>(key.name, 'json');
+      const award = await withBackoff(() => this.kv.get<ProcessedAward>(key.name, 'json'));
       if (award) {
         awards[key.name] = award;
       }
@@ -204,6 +214,6 @@ export class USAspendingAPI {
   }
 
   async getAward(awardId: string) {
-    return await this.kv.get<ProcessedAward>(awardId, 'json');
+    return await withBackoff(() => this.kv.get<ProcessedAward>(awardId, 'json'));
   }
 } 
