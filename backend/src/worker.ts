@@ -1,7 +1,6 @@
 import { Router, IRequest } from 'itty-router';
 import { USAspendingAPI } from './services/USASpendingAPI';
 import { DeepSearch } from './services/DeepSearch';
-import { TemplateRenderer } from './services/TemplateRenderer';
 
 interface Env {
   AWARDS_KV: KVNamespace;
