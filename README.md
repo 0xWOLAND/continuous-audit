@@ -2,7 +2,9 @@
 
 An AI-powered system for detecting potential fraud indicators in federal contract awards.
 
-![Example](./example.png)
+
+https://github.com/user-attachments/assets/50a24aeb-bc0d-4fc6-901c-d89cf1f95474
+
 
 The deep research system works by recursively investigating federal contracts for potential fraud indicators. Starting with an award ID, it generates initial search topics about the company, its executives, and location, then uses Firecrawl to search and crawl relevant web pages. Each discovered page is analyzed by GPT-4 for fraud indicators across multiple categories (like unusual pricing, shell company signs, or geographic risks), with content split into manageable chunks for processing. When the analysis reveals concerning patterns (risk level > 1), those findings are stored and GPT-4 generates follow-up questions that feed back into the search queue as new topics to investigate, creating a recursive research loop that continues until hitting limits. 
 
