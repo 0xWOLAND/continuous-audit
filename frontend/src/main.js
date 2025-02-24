@@ -99,7 +99,43 @@ async function fetchAwards() {
 
         const awards = await awardsResponse.json();
         console.log('Awards:', awards);
-        displayAwards(awards);
+        
+        // Fetch research status for all awards in parallel
+        const researchStatuses = await Promise.all(
+            Object.keys(awards).map(async (awardId) => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/awards/${awardId}/research`);
+                    if (response.ok) {
+                        const research = await response.json();
+                        return {
+                            awardId,
+                            status: 'Complete',
+                            research: research
+                        };
+                    }
+                    return {
+                        awardId,
+                        status: 'Not Started',
+                        research: null
+                    };
+                } catch (error) {
+                    console.error(`Error fetching research for award ${awardId}:`, error);
+                    return {
+                        awardId,
+                        status: 'Not Started',
+                        research: null
+                    };
+                }
+            })
+        );
+
+        // Create a map of research statuses
+        const researchStatusMap = researchStatuses.reduce((map, status) => {
+            map[status.awardId] = status;
+            return map;
+        }, {});
+
+        displayAwards(awards, researchStatusMap);
         showStatus('Awards loaded successfully!');
     } catch (error) {
         console.error('Error:', error);
@@ -110,7 +146,7 @@ async function fetchAwards() {
 }
 
 // Function to display awards in the table
-function displayAwards(awards) {
+function displayAwards(awards, researchStatusMap) {
     awardsTableBody.innerHTML = '';
     if (!awards || Object.keys(awards).length === 0) {
         const row = document.createElement('tr');
@@ -119,45 +155,44 @@ function displayAwards(awards) {
         return;
     }
 
-    Object.entries(awards).forEach(async ([awardId, award]) => {
+    Object.entries(awards).forEach(([awardId, award]) => {
         const row = document.createElement('tr');
         
-        // Check if research exists for this award
-        let researchStatus = 'Not Started';
-        let researchClass = '';
+        // Get research status from the map
+        const researchStatus = researchStatusMap[awardId] || { status: 'Not Started', research: null };
+        const research = researchStatus.research;
+        
         let showButton = '';
         let riskLevel = 'N/A';
         let riskClass = '';
         
-        try {
-            const response = await fetch(`${API_BASE_URL}/awards/${awardId}/research`);
-            if (response.ok) {
-                const research = await response.json();
-                researchStatus = 'Complete';
-                researchClass = 'status-complete';
-                showButton = `<button class="show-btn" data-award-id="${awardId}">Show</button>`;
-                
-                // Get risk level from the primary finding
-                if (research.findings && research.findings[0]) {
-                    riskLevel = research.findings[0].analysis.reasoning.riskLevel;
-                    riskClass = `risk-${riskLevel}`;
-                }
+        if (research) {
+            showButton = `<button class="show-btn" data-award-id="${awardId}">Show</button>`;
+            
+            // Get risk level from the primary finding
+            if (research.findings && research.findings[0]) {
+                riskLevel = research.findings[0].analysis.reasoning.riskLevel;
+                riskClass = `risk-${riskLevel}`;
             }
-        } catch (error) {
-            console.error('Error checking research status:', error);
         }
 
         row.innerHTML = `
             <td>${awardId}</td>
             <td>${award.basicInfo?.recipientName || 'N/A'}</td>
             <td>${formatCurrency(award.basicInfo?.awardAmount) || 'N/A'}</td>
-            <td>${formatDate(award.basicInfo?.awardDate) || 'N/A'}</td>
             <td>${award.details?.description || 'N/A'}</td>
-            <td>${award.details?.category || 'N/A'}</td>
             <td>${award.details?.type_description || 'N/A'}</td>
             <td>${award.details?.awarding_agency?.toptier_agency?.name || 'N/A'}</td>
-            <td class="${riskClass}">${riskLevel}</td>
-            <td class="research-status ${researchClass}">${researchStatus}</td>
+            <td>
+                ${riskLevel !== 'N/A' ? 
+                    `<div class="risk-badge risk-${String(riskLevel).toLowerCase()}">
+                        <span class="risk-dot"></span>
+                        Risk Level ${riskLevel}
+                    </div>` : 
+                    'N/A'
+                }
+            </td>
+            <td class="research-status ${researchStatus.status === 'Complete' ? 'status-complete' : ''}">${researchStatus.status}</td>
             <td>
                 ${showButton}
                 <button class="research-btn" data-award-id="${awardId}">Research</button>
