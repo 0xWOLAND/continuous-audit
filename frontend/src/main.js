@@ -332,16 +332,9 @@ async function startResearch(awardId) {
     const statusCell = researchBtn.parentElement.previousElementSibling;
     try {
         researchBtn.disabled = true;
-        researchBtn.textContent = 'Loading...';
-        
-        modalContent.innerHTML = `
-            <div class="loading">
-                <i class="fas fa-spinner fa-spin"></i>
-                <p>Starting research process...</p>
-                <p class="loading-subtitle">This may take a few moments</p>
-            </div>
-        `;
-        showModal();
+        researchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Researching...';
+        statusCell.innerHTML = '<i class="fas fa-spinner fa-spin"></i> In Progress';
+        statusCell.className = 'research-status status-in-progress';
 
         const response = await fetch(`${API_BASE_URL}/awards/${awardId}/research`, {
             method: 'POST',
@@ -355,7 +348,6 @@ async function startResearch(awardId) {
         }
 
         const result = await response.json();
-        displayResearchInModal(awardId, result);
         
         // Update the row to show the new status and add show button
         statusCell.textContent = 'Complete';
@@ -373,18 +365,11 @@ async function startResearch(awardId) {
     } catch (error) {
         console.error('Error:', error);
         showStatus('Failed to start research: ' + error.message, true);
-        modalContent.innerHTML = `
-            <div class="error">
-                <i class="fas fa-exclamation-circle"></i>
-                <p>Failed to start research</p>
-                <p class="error-details">${error.message}</p>
-            </div>
-        `;
         statusCell.textContent = 'Failed';
         statusCell.className = 'research-status status-failed';
     } finally {
         researchBtn.disabled = false;
-        researchBtn.textContent = 'Research';
+        researchBtn.innerHTML = '<i class="fas fa-search"></i> Research';
     }
 }
 
