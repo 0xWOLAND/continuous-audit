@@ -40,11 +40,14 @@ export class USAspendingAPI {
 
   async fetchAwards(): Promise<APIResponse<Award> | null> {
     const url = this.BASE_URL + "/search/spending_by_award/";
-    const payload = {
+    const allResults: Award[] = [];
+
+    for (let page = 1; page <= 10; page++) {
+      const payload = {
       filters: {
         agencies: [
           {
-            type: "awarding",
+            type: "awarding", 
             tier: "toptier",
             name: "Department of Health and Human Services"
           }
@@ -54,24 +57,31 @@ export class USAspendingAPI {
       fields: ["Award ID", "Recipient Name", "Award Amount", "Award Date", "generated_internal_id"],
       order: "desc",
       limit: 100,
-      page: 1
-    };
+          page: page
+        };
 
-    try {
-      const response = await withBackoff(() => fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
-      }));
-      
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      return await response.json() as APIResponse<Award>;
-    } catch (error) {
-      console.error("Error fetching awards:", error instanceof Error ? error.message : error);
-      return null;
-    }
+        try {
+          const response = await withBackoff(() => fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
+          }));
+          
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          const data = await response.json() as APIResponse<Award>;
+          
+          if (data.results) {
+            allResults.push(...data.results);
+          }
+        } catch (error) {
+          console.error(`Error fetching awards page ${page}:`, error instanceof Error ? error.message : error);
+          continue;
+        }
+      }
+
+      return { results: allResults };
   }
 
   async fetchAwardDetails(awardId: string) {
