@@ -7,6 +7,32 @@ const statusDiv = document.getElementById('status');
 const loadingDiv = document.getElementById('loading');
 const awardsTableBody = document.getElementById('awardsTableBody');
 
+// Create modal elements
+const modal = document.createElement('div');
+modal.id = 'researchModal';
+modal.className = 'modal';
+modal.innerHTML = `
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Research Results</h2>
+        <div id="modalContent"></div>
+    </div>
+`;
+document.body.appendChild(modal);
+
+const modalContent = document.getElementById('modalContent');
+const closeBtn = modal.querySelector('.close');
+
+// Close modal when clicking the X
+closeBtn.onclick = () => hideModal();
+
+// Close modal when clicking outside
+window.onclick = (event) => {
+    if (event.target === modal) {
+        hideModal();
+    }
+}
+
 // Helper function to show status messages
 function showStatus(message, isError = false) {
     statusDiv.textContent = message;
@@ -86,13 +112,29 @@ function displayAwards(awards) {
     awardsTableBody.innerHTML = '';
     if (!awards || Object.keys(awards).length === 0) {
         const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="9" class="no-data">No awards found</td>';
+        row.innerHTML = '<td colspan="10" class="no-data">No awards found</td>';
         awardsTableBody.appendChild(row);
         return;
     }
 
-    Object.entries(awards).forEach(([awardId, award]) => {
+    Object.entries(awards).forEach(async ([awardId, award]) => {
         const row = document.createElement('tr');
+        
+        // Check if research exists for this award
+        let researchStatus = 'Not Started';
+        let researchClass = '';
+        let showButton = '';
+        try {
+            const response = await fetch(`${API_BASE_URL}/awards/${awardId}/research`);
+            if (response.ok) {
+                researchStatus = 'Complete';
+                researchClass = 'status-complete';
+                showButton = `<button class="show-btn" data-award-id="${awardId}">Show</button>`;
+            }
+        } catch (error) {
+            console.error('Error checking research status:', error);
+        }
+
         row.innerHTML = `
             <td>${awardId}</td>
             <td>${award.basicInfo?.recipientName || 'N/A'}</td>
@@ -102,9 +144,19 @@ function displayAwards(awards) {
             <td>${award.details?.category || 'N/A'}</td>
             <td>${award.details?.type_description || 'N/A'}</td>
             <td>${award.details?.awarding_agency?.toptier_agency?.name || 'N/A'}</td>
-            <td><button class="research-btn" data-award-id="${awardId}">Research</button></td>
+            <td class="research-status ${researchClass}">${researchStatus}</td>
+            <td>
+                ${showButton}
+                <button class="research-btn" data-award-id="${awardId}">Research</button>
+            </td>
         `;
         awardsTableBody.appendChild(row);
+
+        // Add click handler for the show button if it exists
+        const showBtn = row.querySelector('.show-btn');
+        if (showBtn) {
+            showBtn.addEventListener('click', () => showResearch(awardId));
+        }
 
         // Add click handler for the research button
         const researchBtn = row.querySelector('.research-btn');
@@ -112,12 +164,184 @@ function displayAwards(awards) {
     });
 }
 
+// Function to display research in modal
+function displayResearchInModal(awardId, research) {
+    // Get the primary finding for the header
+    const primaryFinding = research.findings[0];
+    const primaryAnalysis = primaryFinding.analysis.reasoning;
+    
+    modalContent.innerHTML = `
+        <div class="research-results">
+            <div class="research-header">
+                <div class="award-info">
+                    <h3>Research Results</h3>
+                    <div class="award-id">Award ID: ${research.originalAwardId}</div>
+                </div>
+                <div class="risk-indicator">
+                    <div class="risk-label">Overall Risk Level</div>
+                    <div class="risk-meter risk-${primaryAnalysis.riskLevel}">
+                        ${primaryAnalysis.riskLevel}
+                        <span class="risk-max">/5</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="research-main">
+                <div class="research-section">
+                    <h4><i class="fas fa-lightbulb"></i> Primary Assessment</h4>
+                    <div class="initial-thoughts">
+                        ${primaryAnalysis.initialThoughts}
+                    </div>
+                </div>
+
+                <div class="research-grid">
+                    <div class="research-section">
+                        <h4><i class="fas fa-exclamation-triangle"></i> Key Risk Indicators</h4>
+                        <ul class="risk-indicators">
+                            ${primaryAnalysis.indicators.map(indicator => 
+                                `<li>${indicator}</li>`
+                            ).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="research-section">
+                        <h4><i class="fas fa-search"></i> Areas for Investigation</h4>
+                        <ul class="investigation-areas">
+                            ${primaryAnalysis.questions.map(question => 
+                                `<li>${question}</li>`
+                            ).join('')}
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="research-section">
+                    <h4><i class="fas fa-balance-scale"></i> Risk Assessment</h4>
+                    <div class="risk-justification">
+                        ${primaryAnalysis.justification}
+                    </div>
+                </div>
+
+                <div class="detailed-findings-section">
+                    <div class="findings-header">
+                        <h4><i class="fas fa-file-alt"></i> Source Documents and Analysis</h4>
+                        <span class="findings-count">${research.findings.length} source${research.findings.length !== 1 ? 's' : ''} analyzed</span>
+                    </div>
+                    <div class="findings-container">
+                        ${research.findings.map((finding, index) => {
+                            const analysis = finding.analysis.reasoning;
+                            return `
+                                <div class="finding-card">
+                                    <div class="finding-header">
+                                        <div class="finding-title">
+                                            <span class="finding-number">Source ${index + 1}</span>
+                                            <span class="finding-risk risk-${analysis.riskLevel}">
+                                                Risk Level ${analysis.riskLevel}/5
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="finding-content">
+                                        <div class="finding-source-content">
+                                            <h5><i class="fas fa-file-alt"></i> Source Content</h5>
+                                            <div class="source-text">
+                                                ${finding.content}
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="finding-analysis">
+                                            <h5><i class="fas fa-microscope"></i> Analysis</h5>
+                                            <div class="analysis-section">
+                                                <h6>Initial Assessment</h6>
+                                                <p>${analysis.initialThoughts}</p>
+                                            </div>
+                                            
+                                            <div class="analysis-section">
+                                                <h6>Risk Indicators</h6>
+                                                <ul>
+                                                    ${analysis.indicators.map(indicator => 
+                                                        `<li>${indicator}</li>`
+                                                    ).join('')}
+                                                </ul>
+                                            </div>
+                                            
+                                            <div class="analysis-section">
+                                                <h6>Areas for Further Investigation</h6>
+                                                <ul>
+                                                    ${analysis.questions.map(question => 
+                                                        `<li>${question}</li>`
+                                                    ).join('')}
+                                                </ul>
+                                            </div>
+                                            
+                                            <div class="analysis-section">
+                                                <h6>Risk Assessment</h6>
+                                                <p>${analysis.justification}</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="finding-footer">
+                                            <div class="source-info">
+                                                <a href="${finding.source}" target="_blank" rel="noopener noreferrer">
+                                                    <i class="fas fa-external-link-alt"></i> View Original Document
+                                                </a>
+                                                <span class="finding-date">
+                                                    Analyzed on ${new Date(finding.analysis.timestamp).toLocaleString()}
+                                                </span>
+                                            </div>
+                                            <div class="relevance-score">
+                                                Relevance Score: ${(finding.relevanceScore * 100).toFixed(1)}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+
+            <div class="research-footer">
+                <div class="timestamp">
+                    Last updated: ${new Date(primaryFinding.analysis.timestamp).toLocaleString()}
+                </div>
+            </div>
+        </div>
+    `;
+    showModal();
+
+    // Add click handlers for finding cards to expand/collapse
+    const findingCards = modalContent.querySelectorAll('.finding-card');
+    findingCards.forEach(card => {
+        // Make the header clickable to expand/collapse
+        const header = card.querySelector('.finding-header');
+        const content = card.querySelector('.finding-content');
+        
+        // Show content by default
+        content.style.display = 'block';
+        
+        header.addEventListener('click', () => {
+            const isExpanded = content.style.display !== 'none';
+            content.style.display = isExpanded ? 'none' : 'block';
+            header.classList.toggle('collapsed', !isExpanded);
+        });
+    });
+}
+
 // Function to handle research button click
 async function startResearch(awardId) {
+    const researchBtn = document.querySelector(`button.research-btn[data-award-id="${awardId}"]`);
+    const statusCell = researchBtn.parentElement.previousElementSibling;
     try {
-        const researchBtn = document.querySelector(`[data-award-id="${awardId}"]`);
         researchBtn.disabled = true;
-        researchBtn.textContent = 'Researching...';
+        researchBtn.textContent = 'Loading...';
+        
+        modalContent.innerHTML = `
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Starting research process...</p>
+                <p class="loading-subtitle">This may take a few moments</p>
+            </div>
+        `;
+        showModal();
 
         const response = await fetch(`${API_BASE_URL}/awards/${awardId}/research`, {
             method: 'POST',
@@ -131,16 +355,80 @@ async function startResearch(awardId) {
         }
 
         const result = await response.json();
-        showStatus(`Research started for award ${awardId}`);
+        displayResearchInModal(awardId, result);
+        
+        // Update the row to show the new status and add show button
+        statusCell.textContent = 'Complete';
+        statusCell.className = 'research-status status-complete';
+        
+        // Add show button if it doesn't exist
+        if (!researchBtn.parentElement.querySelector('.show-btn')) {
+            const showBtn = document.createElement('button');
+            showBtn.className = 'show-btn';
+            showBtn.setAttribute('data-award-id', awardId);
+            showBtn.innerHTML = '<i class="fas fa-eye"></i> Show';
+            showBtn.addEventListener('click', () => showResearch(awardId));
+            researchBtn.parentElement.insertBefore(showBtn, researchBtn);
+        }
     } catch (error) {
-        console.error('Error starting research:', error);
+        console.error('Error:', error);
         showStatus('Failed to start research: ' + error.message, true);
+        modalContent.innerHTML = `
+            <div class="error">
+                <i class="fas fa-exclamation-circle"></i>
+                <p>Failed to start research</p>
+                <p class="error-details">${error.message}</p>
+            </div>
+        `;
+        statusCell.textContent = 'Failed';
+        statusCell.className = 'research-status status-failed';
     } finally {
-        const researchBtn = document.querySelector(`[data-award-id="${awardId}"]`);
         researchBtn.disabled = false;
         researchBtn.textContent = 'Research';
     }
 }
 
+// Function to show existing research
+async function showResearch(awardId) {
+    try {
+        modalContent.innerHTML = `
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Loading research data...</p>
+            </div>
+        `;
+        showModal();
+
+        const response = await fetch(`${API_BASE_URL}/awards/${awardId}/research`);
+        if (!response.ok) {
+            throw new Error(`Failed to load research: ${response.status}`);
+        }
+
+        const research = await response.json();
+        displayResearchInModal(awardId, research);
+    } catch (error) {
+        console.error('Error:', error);
+        modalContent.innerHTML = `
+            <div class="error">
+                <i class="fas fa-exclamation-circle"></i>
+                <p>Failed to load research data</p>
+                <p class="error-details">${error.message}</p>
+            </div>
+        `;
+    }
+}
+
 // Event Listeners
 fetchButton.addEventListener('click', fetchAwards);
+
+// In your modal open function (where you set modal.style.display = 'block')
+function showModal() {
+    modal.style.display = 'block';
+    document.body.classList.add('modal-open');
+}
+
+// In your modal close functions
+function hideModal() {
+    modal.style.display = 'none';
+    document.body.classList.remove('modal-open');
+}

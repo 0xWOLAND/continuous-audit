@@ -16,6 +16,7 @@ export async function withBackoff<T>(
             }
 
             const delay = Math.min(baseDelay * Math.pow(2, retries), maxDelay);
+            console.log(`Retrying in ${delay}ms`);
             await sleep(delay);
             retries++;
         }

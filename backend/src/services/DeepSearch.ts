@@ -209,12 +209,14 @@ ${content}
 
         const model = 'gpt-4-turbo-preview';
         
+        console.log('Analyzing content and award details for fraud indicators...');
         const analysis = await this.analyze(
             PROMPTS.INITIAL_REASONING(awardId, enrichedContext), 
             combinedContent, 
             model,
             AnalysisResponse
         );
+        console.log('Analysis:', analysis);
 
         if (!analysis) {
             console.log('Initial analysis failed');
