@@ -1,6 +1,7 @@
 import { Router, IRequest } from 'itty-router';
 import { USAspendingAPI } from './services/USASpendingAPI';
 import { DeepSearch } from './services/DeepSearch';
+import { withBackoff } from './utils';
 
 interface Env {
   AWARDS_KV: KVNamespace;
@@ -8,6 +9,7 @@ interface Env {
   FIRECRAWL_API_KEY: string;
   OPENAI_API_KEY: string;
   ENVIRONMENT?: string;  // Optional since it might not be set in dev
+  PROXY_URL?: string;  // Optional proxy URL for USAspending API
 }
 
 // Extend the Request type to include params
@@ -34,14 +36,13 @@ router.options('*', () => new Response(null, {
 
 // Add a route to trigger award fetching manually
 router.post('/fetch-awards', async (_request, env: Env) => {
-  const api = new USAspendingAPI(env.AWARDS_KV);
+  const api = new USAspendingAPI(env.AWARDS_KV, env.PROXY_URL);
   try {
     const awards = await api.processAwards();
     return Response.json({ awards, status: 200 });
   } catch (error) {
     return Response.json(
-      { status: 'error', message: error instanceof Error ? error.message : 'Unknown error' }, 
-      { status: 500 }
+      { status: 500, message: error instanceof Error ? error.message : 'Unknown error' }, 
     );
   }
 });
@@ -53,7 +54,7 @@ router.get('/test', async (_request, env: Env) => {
 });
 
 router.get('/awards', async (_request, env: Env) => {
-  const api = new USAspendingAPI(env.AWARDS_KV);
+  const api = new USAspendingAPI(env.AWARDS_KV, env.PROXY_URL);
   const awards = await api.getAllAwards();
 
   if (Object.keys(awards).length === 0) {
@@ -71,7 +72,7 @@ router.get('/awards/:awardId', async (request, env: Env) => {
     return new Response('Award ID is required', { status: 400 });
   }
 
-  const api = new USAspendingAPI(env.AWARDS_KV);
+  const api = new USAspendingAPI(env.AWARDS_KV, env.PROXY_URL);
   const award = await api.getAward(awardId);
   
   if (!award) {
@@ -88,7 +89,7 @@ router.post('/awards/:awardId/research', async (request, env: Env) => {
         return new Response('Award ID is required', { status: 400 });
     }
 
-    const api = new USAspendingAPI(env.AWARDS_KV);
+    const api = new USAspendingAPI(env.AWARDS_KV, env.PROXY_URL);
     const award = await api.getAward(awardId);
 
     if (!award) {
@@ -99,10 +100,10 @@ router.post('/awards/:awardId/research', async (request, env: Env) => {
         const deepSearch = new DeepSearch(env);
         const searchContext = await deepSearch.searchAward(awardId, award);
         
-        await env.RESEARCH_KV.put(
+        await withBackoff(() => env.RESEARCH_KV.put(
             awardId, 
             JSON.stringify(searchContext)
-        );
+        ));
 
         return Response.json(searchContext);
     } catch (error) {
@@ -118,7 +119,7 @@ router.get('/awards/:awardId/research', async (request, env: Env) => {
         return new Response('Award ID is required', { status: 400 });
     }
 
-    const research = await env.RESEARCH_KV.get(awardId);
+    const research = await withBackoff(() => env.RESEARCH_KV.get(awardId));
     if (!research) {
         return new Response('Research not found', { status: 404 });
     }
@@ -161,7 +162,7 @@ export default {
   },
 
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    const api = new USAspendingAPI(env.AWARDS_KV);
+    const api = new USAspendingAPI(env.AWARDS_KV, env.PROXY_URL);
     
     try {
         await api.processAwards();
@@ -169,13 +170,13 @@ export default {
         const isTestScheduled = event.cron === 'test-scheduled';
         if (isTestScheduled) return;
 
-        const allAwards = await env.AWARDS_KV.list();
+        const allAwards = await withBackoff(() => env.AWARDS_KV.list());
         const deepSearch = new DeepSearch(env);
 
         for (const key of allAwards.keys) {
             if (key.name.startsWith('research:')) continue;
 
-            const hasResearch = await env.AWARDS_KV.get(`research:${key.name}`);
+            const hasResearch = await withBackoff(() => env.AWARDS_KV.get(`research:${key.name}`));
             if (hasResearch) continue;
 
             const award = await api.getAward(key.name);

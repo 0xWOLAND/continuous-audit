@@ -1,4 +1,5 @@
 import type { KVNamespace } from '@cloudflare/workers-types';
+import { withBackoff } from '../utils';
 
 interface Award {
   "Award ID": string;
@@ -29,11 +30,12 @@ interface TransactionResponse {
 }
 
 export class USAspendingAPI {
-  private readonly BASE_URL: string = "https://api.usaspending.gov/api/v2";
+  private readonly BASE_URL: string;
   private kv: KVNamespace;
 
-  constructor(kv: KVNamespace) {
+  constructor(kv: KVNamespace, baseUrl?: string) {
     this.kv = kv;
+    this.BASE_URL = baseUrl || "https://api.usaspending.gov/api/v2";
   }
 
   async fetchAwards(): Promise<APIResponse<Award> | null> {
@@ -56,14 +58,13 @@ export class USAspendingAPI {
     };
 
     try {
-      const response = await fetch(url, {
+      const response = await withBackoff(() => fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'USAspending-Proxy/1.0'
         },
         body: JSON.stringify(payload)
-      });
+      }));
       
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return await response.json() as APIResponse<Award>;
@@ -77,7 +78,7 @@ export class USAspendingAPI {
     const url = this.BASE_URL + `/awards/${awardId}/`;
     
     try {
-      const response = await fetch(url);
+      const response = await withBackoff(() => fetch(url));
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return await response.json();
     } catch (error) {
@@ -101,13 +102,13 @@ export class USAspendingAPI {
       };
 
       try {
-        const response = await fetch(url, {
+        const response = await withBackoff(() => fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
-        });
+        }));
 
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json() as TransactionResponse;
@@ -155,8 +156,7 @@ export class USAspendingAPI {
         transactions: transactions
       };
 
-      // Store in KV
-      await this.kv.put(awardId, JSON.stringify(processedAward));
+      await withBackoff(() => this.kv.put(awardId, JSON.stringify(processedAward)));
 
       return {
         award_info: award,
@@ -186,16 +186,15 @@ export class USAspendingAPI {
       }
     }
 
-    console.log("Processed awards:", processedAwards);
     return processedAwards;
   }
 
   async getAllAwards() {
-    const { keys } = await this.kv.list();
+    const { keys } = await withBackoff(() => this.kv.list());
     const awards: Record<string, ProcessedAward> = {};
     
     for (const key of keys) {
-      const award = await this.kv.get<ProcessedAward>(key.name, 'json');
+      const award = await withBackoff(() => this.kv.get<ProcessedAward>(key.name, 'json'));
       if (award) {
         awards[key.name] = award;
       }
@@ -205,6 +204,6 @@ export class USAspendingAPI {
   }
 
   async getAward(awardId: string) {
-    return await this.kv.get<ProcessedAward>(awardId, 'json');
+    return await withBackoff(() => this.kv.get<ProcessedAward>(awardId, 'json'));
   }
 } 

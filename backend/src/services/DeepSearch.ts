@@ -306,7 +306,7 @@ ${this.formatLocation(details.place_of_performance)}
         const startTime = Date.now();
 
         try {
-            const cached = await this.env.RESEARCH_KV.get(awardId);
+            const cached = await withBackoff(() => this.env.RESEARCH_KV.get(awardId));
             if (cached) {
                 console.log('Returning cached result');
                 return JSON.parse(cached);
@@ -338,7 +338,7 @@ ${this.formatLocation(details.place_of_performance)}
             context.summary = summary || 'No conclusive summary generated';
             context.reasoningChain.finalConclusions = summary ? summary.split('\n').filter(Boolean) : ['Analysis incomplete'];
 
-            await this.env.RESEARCH_KV.put(awardId, JSON.stringify(context));
+            await withBackoff(() => this.env.RESEARCH_KV.put(awardId, JSON.stringify(context)));
             console.log('=== Research completed successfully ===');
             return context;
 
@@ -410,7 +410,7 @@ ${this.formatLocation(details.place_of_performance)}
                 confidence: relevanceScore
             });
 
-            await this.env.RESEARCH_KV.put(context.originalAwardId, JSON.stringify(context));
+            await withBackoff(() => this.env.RESEARCH_KV.put(context.originalAwardId, JSON.stringify(context)));
         } else {
             console.log(`Low risk level (${analysis.riskLevel}/5) at ${page.url}, skipping...`);
         }

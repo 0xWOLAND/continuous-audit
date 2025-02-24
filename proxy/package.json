@@ -4,7 +4,7 @@
   "description": "Simple proxy server for usaspending.gov",
   "main": "api/proxy.js",
   "scripts": {
-    "start": "vercel dev",
+    "start": "vercel dev --listen 3001",
     "deploy": "vercel deploy --prod",
     "test": "node test.js"
   },

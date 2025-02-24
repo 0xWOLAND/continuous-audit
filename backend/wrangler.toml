@@ -12,7 +12,7 @@ binding = "RESEARCH_KV"
 id = "26c5d9f4319a41499b0e18cad62dc368"
 preview_id = "82c68b11b86644eeac933619d8462f83"
 
-[env.staging.observability]
+[observability]
 enabled = true
 
 [triggers]

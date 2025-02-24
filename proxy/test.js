@@ -1,10 +1,15 @@
 const fetch = require('node-fetch');
+const dotenv = require('dotenv');
 
-const baseUrl = process.env.TEST_URL || 'http://localhost:3000';
+dotenv.config();
+
+const baseUrl = process.env.TEST_URL || 'http://localhost:3001';
 
 async function testProxy() {
   try {
-    const response = await fetch(`${baseUrl}/api/v2/awards/150082979/`);
+    const url = `${baseUrl}/api/v2/awards/150082979`
+    console.log("Fetching from:", url);
+    const response = await fetch(url);
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || 'API error');
     console.log('Proxy success:', data);
