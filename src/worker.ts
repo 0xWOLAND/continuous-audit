@@ -1,6 +1,7 @@
 import { Router, IRequest } from 'itty-router';
 import { USAspendingAPI } from './services/USASpendingAPI';
 import { DeepSearch } from './services/DeepSearch';
+import { TemplateRenderer } from './services/TemplateRenderer';
 
 interface Env {
   AWARDS_KV: KVNamespace;
@@ -98,6 +99,29 @@ router.get('/awards/:awardId/research', async (request, env: Env) => {
     }
 
     return Response.json(JSON.parse(research));
+});
+
+// Add base path handler
+router.get('/', async (_request, env: Env) => {
+    try {
+        const api = new USAspendingAPI(env.AWARDS_KV);
+        const awards = await api.getAllAwards();
+        
+        // console.log('Retrieved awards:', {
+        //     count: Object.keys(awards).length,
+        //     sample: Object.entries(awards)
+        // });
+        
+        const renderer = new TemplateRenderer();
+        const html = renderer.render(awards);
+
+        return new Response(html, {
+            headers: { 'Content-Type': 'text/html' }
+        });
+    } catch (error) {
+        console.error('Error in root route:', error);
+        return new Response('Internal Server Error', { status: 500 });
+    }
 });
 
 // Add a catch-all route for 404s
