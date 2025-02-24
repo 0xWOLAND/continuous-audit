@@ -114,7 +114,7 @@ function displayAwards(awards) {
     awardsTableBody.innerHTML = '';
     if (!awards || Object.keys(awards).length === 0) {
         const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="10" class="no-data">No awards found</td>';
+        row.innerHTML = '<td colspan="11" class="no-data">No awards found</td>';
         awardsTableBody.appendChild(row);
         return;
     }
@@ -126,12 +126,22 @@ function displayAwards(awards) {
         let researchStatus = 'Not Started';
         let researchClass = '';
         let showButton = '';
+        let riskLevel = 'N/A';
+        let riskClass = '';
+        
         try {
             const response = await fetch(`${API_BASE_URL}/awards/${awardId}/research`);
             if (response.ok) {
+                const research = await response.json();
                 researchStatus = 'Complete';
                 researchClass = 'status-complete';
                 showButton = `<button class="show-btn" data-award-id="${awardId}">Show</button>`;
+                
+                // Get risk level from the primary finding
+                if (research.findings && research.findings[0]) {
+                    riskLevel = research.findings[0].analysis.reasoning.riskLevel;
+                    riskClass = `risk-${riskLevel}`;
+                }
             }
         } catch (error) {
             console.error('Error checking research status:', error);
@@ -146,6 +156,7 @@ function displayAwards(awards) {
             <td>${award.details?.category || 'N/A'}</td>
             <td>${award.details?.type_description || 'N/A'}</td>
             <td>${award.details?.awarding_agency?.toptier_agency?.name || 'N/A'}</td>
+            <td class="${riskClass}">${riskLevel}</td>
             <td class="research-status ${researchClass}">${researchStatus}</td>
             <td>
                 ${showButton}
