@@ -55,6 +55,11 @@ router.get('/test', async (_request, env: Env) => {
 router.get('/awards', async (_request, env: Env) => {
   const api = new USAspendingAPI(env.AWARDS_KV);
   const awards = await api.getAllAwards();
+
+  if (Object.keys(awards).length === 0) {
+    return new Response('No awards found', { status: 404 });
+  }
+
   return Response.json(awards, {
     headers: corsHeaders
   });
