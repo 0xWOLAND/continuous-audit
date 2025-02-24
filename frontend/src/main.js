@@ -2,10 +2,14 @@
 const API_BASE_URL = 'http://localhost:8787';
 
 // DOM Elements
-const fetchButton = document.getElementById('fetchButton');
-const statusDiv = document.getElementById('status');
-const loadingDiv = document.getElementById('loading');
-const awardsTableBody = document.getElementById('awardsTableBody');
+let statusDiv, loadingDiv, awardsTableBody;
+
+document.addEventListener('DOMContentLoaded', () => {
+    statusDiv = document.getElementById('status');
+    loadingDiv = document.getElementById('loading');
+    awardsTableBody = document.getElementById('awardsTableBody');
+    fetchAwards();
+});
 
 // Create modal elements
 const modal = document.createElement('div');
@@ -64,10 +68,9 @@ function formatDate(dateString) {
 
 // Function to fetch awards
 async function fetchAwards() {
+    console.log("fetching awards")
     try {
         loadingDiv.style.display = 'block';
-        fetchButton.disabled = true;
-
         const testResponse = await fetch(`${API_BASE_URL}/test`);
         console.log('Test response:', testResponse);
         if (!testResponse.ok) {
@@ -103,7 +106,6 @@ async function fetchAwards() {
         showStatus(error.message, true);
     } finally {
         loadingDiv.style.display = 'none';
-        fetchButton.disabled = false;
     }
 }
 
@@ -403,10 +405,6 @@ async function showResearch(awardId) {
     }
 }
 
-// Event Listeners
-fetchButton.addEventListener('click', fetchAwards);
-
-// In your modal open function (where you set modal.style.display = 'block')
 function showModal() {
     modal.style.display = 'block';
     document.body.classList.add('modal-open');
