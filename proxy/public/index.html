@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USAspending.gov Proxy Service</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            color: #333;
+        }
+        h1 {
+            color: #1a73e8;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        code {
+            background: #f5f5f5;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+        .endpoint {
+            background: #f8f9fa;
+            border-left: 4px solid #1a73e8;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .example {
+            background: #f0f4ff;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>USAspending.gov Proxy Service</h1>
+    
+    <p>
+        This is a proxy service that forwards requests to the USAspending.gov API. It helps bypass CORS issues
+        and provides a clean interface for accessing USAspending.gov data.
+    </p>
+
+    <h2>How to Use</h2>
+    
+    <div class="endpoint">
+        <h3>Base URL</h3>
+        <code>https://[your-domain]/api/*</code>
+        <p>All USAspending.gov API endpoints are accessible by appending them to the base URL.</p>
+    </div>
+
+    <h2>Examples</h2>
+    
+    <div class="example">
+        <h3>Get Top-Tier Agencies</h3>
+        <p>Original USAspending.gov endpoint:</p>
+        <code>https://api.usaspending.gov/api/v2/references/toptier_agencies</code>
+        
+        <p>Using this proxy:</p>
+        <code>https://[your-domain]/api/api/v2/references/toptier_agencies</code>
+    </div>
+
+    <div class="example">
+        <h3>Health Check</h3>
+        <p>Check if the proxy is running:</p>
+        <code>https://[your-domain]/health</code>
+    </div>
+
+    <h2>Features</h2>
+    <ul>
+        <li>CORS-enabled for browser access</li>
+        <li>Automatic forwarding of all USAspending.gov API endpoints</li>
+        <li>Health check endpoint</li>
+        <li>Secure headers</li>
+    </ul>
+
+    <h2>Rate Limits</h2>
+    <p>
+        This proxy is subject to USAspending.gov's rate limits. Please refer to their 
+        <a href="https://api.usaspending.gov/" target="_blank">API documentation</a> 
+        for more details.
+    </p>
+
+    <footer style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee;">
+        <p>
+            For more information about the available endpoints, please visit the 
+            <a href="https://api.usaspending.gov/" target="_blank">USAspending.gov API documentation</a>.
+        </p>
+    </footer>
+</body>
+</html> 
