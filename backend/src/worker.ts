@@ -20,6 +20,18 @@ interface RequestWithParams extends IRequest {
 // Create router with correct typing
 const router = Router<RequestWithParams>();
 
+// Add CORS headers to responses
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,HEAD,POST,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+// Handle OPTIONS requests for CORS
+router.options('*', () => new Response(null, {
+  headers: corsHeaders
+}));
+
 // Add a route to trigger award fetching manually
 router.post('/fetch-awards', async (_request, env: Env) => {
   const api = new USAspendingAPI(env.AWARDS_KV);
@@ -34,10 +46,18 @@ router.post('/fetch-awards', async (_request, env: Env) => {
   }
 });
 
+router.get('/test', async (_request, env: Env) => {
+  return new Response('Test successful', {
+    headers: corsHeaders
+  });
+});
+
 router.get('/awards', async (_request, env: Env) => {
   const api = new USAspendingAPI(env.AWARDS_KV);
   const awards = await api.getAllAwards();
-  return Response.json(awards);
+  return Response.json(awards, {
+    headers: corsHeaders
+  });
 });
 
 router.get('/awards/:awardId', async (request, env: Env) => {
@@ -107,18 +127,31 @@ router.get('/', async (_request, env: Env) => {
     headers: {
       'Content-Type': 'text/plain'
     }
-  })
+  });
 });
 
 // Add a catch-all route for 404s
 router.all('*', () => new Response('Not Found', { status: 404 }));
 
+const corsify = (response: Response): Response => {
+  const headers = new Headers(response.headers);
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    headers.set(key, value);
+  });
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+};
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     return router.handle(request, env)
+      .then(corsify)
       .catch(error => {
         console.error('Router error:', error);
-        return new Response('Internal Server Error', { status: 500 });
+        return corsify(new Response('Internal Server Error', { status: 500 }));
       });
   },
 

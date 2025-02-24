@@ -1,5 +1,3 @@
-import './style.css'
-
 // API endpoint configuration
 const API_BASE_URL = 'http://localhost:8787';
 
@@ -41,6 +39,12 @@ async function fetchAwards() {
     try {
         loadingDiv.style.display = 'block';
         fetchButton.disabled = true;
+
+        const testResponse = await fetch(`${API_BASE_URL}/test`);
+        console.log('Test response:', testResponse);
+        if (!testResponse.ok) {
+            throw new Error(`Backend server at ${API_BASE_URL} is not available. Please make sure it's running.`);
+        }
 
         // First trigger manual fetch
         const fetchResponse = await fetch(`${API_BASE_URL}/fetch-awards`, {
