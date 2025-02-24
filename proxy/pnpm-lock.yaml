@@ -17,6 +17,9 @@ importers:
       http-proxy-middleware:
         specifier: ^3.0.0
         version: 3.0.3
+      node-fetch:
+        specifier: ^2.7.0
+        version: 2.7.0
     devDependencies:
       vercel:
         specifier: ^33.0.0

@@ -59,7 +59,8 @@ export class USAspendingAPI {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'User-Agent': 'USAspending-Proxy/1.0'
         },
         body: JSON.stringify(payload)
       });

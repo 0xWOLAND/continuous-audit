@@ -6,7 +6,7 @@ export default defineConfig({
     open: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8787',
+        target: 'https://d17b1ef7-usa-spending-poller.bhargav-annem.workers.dev/',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }
