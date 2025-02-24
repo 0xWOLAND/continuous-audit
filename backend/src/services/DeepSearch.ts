@@ -139,16 +139,19 @@ export class DeepSearch {
         }
     }
 
-    private async exploreTopics(awardId: string): Promise<string[]> {
+    private async exploreTopics(): Promise<string[]> {
         const allUrls = new Set<string>();
         
         for (const [query, topic] of this.queue.topics) {
             if (topic.explored) continue;
 
             try {
+                console.log(`Exploring topic: ${query}`);
                 const response = await withBackoff(() => 
                     this.firecrawl.search(query, { limit: DeepSearch.LIMITS.MAX_RESULTS_PER_QUERY })
                 );
+                console.log(`Found ${response.data?.length} results for ${query}`);
+                console.log(response.data);
                 
                 response.data?.forEach((result: FirecrawlDocument) => {
                     const url = result.url;
@@ -158,6 +161,7 @@ export class DeepSearch {
                     }
                 });
             } catch (error) {
+                console.log(error);
                 console.error(`Failed to explore topic: ${query}`, error);
             }
             topic.explored = true;
@@ -309,8 +313,7 @@ ${this.formatLocation(details.place_of_performance)}
 
             console.log('Step 4: Starting URL exploration...');
             while (!this.shouldStopSearch(startTime)) {
-                console.log('Exploring topics for URLs...');
-                const urls = await this.exploreTopics(awardId);
+                const urls = await this.exploreTopics();
                 if (urls.length === 0) break;
 
                 console.log('Processing discovered URLs...');

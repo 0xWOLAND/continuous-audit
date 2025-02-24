@@ -86,7 +86,7 @@ function displayAwards(awards) {
     awardsTableBody.innerHTML = '';
     if (!awards || Object.keys(awards).length === 0) {
         const row = document.createElement('tr');
-        row.innerHTML = '<td colspan="8" class="no-data">No awards found</td>';
+        row.innerHTML = '<td colspan="9" class="no-data">No awards found</td>';
         awardsTableBody.appendChild(row);
         return;
     }
@@ -102,9 +102,44 @@ function displayAwards(awards) {
             <td>${award.details?.category || 'N/A'}</td>
             <td>${award.details?.type_description || 'N/A'}</td>
             <td>${award.details?.awarding_agency?.toptier_agency?.name || 'N/A'}</td>
+            <td><button class="research-btn" data-award-id="${awardId}">Research</button></td>
         `;
         awardsTableBody.appendChild(row);
+
+        // Add click handler for the research button
+        const researchBtn = row.querySelector('.research-btn');
+        researchBtn.addEventListener('click', () => startResearch(awardId));
     });
+}
+
+// Function to handle research button click
+async function startResearch(awardId) {
+    try {
+        const researchBtn = document.querySelector(`[data-award-id="${awardId}"]`);
+        researchBtn.disabled = true;
+        researchBtn.textContent = 'Researching...';
+
+        const response = await fetch(`${API_BASE_URL}/awards/${awardId}/research`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to start research: ${response.status}`);
+        }
+
+        const result = await response.json();
+        showStatus(`Research started for award ${awardId}`);
+    } catch (error) {
+        console.error('Error starting research:', error);
+        showStatus('Failed to start research: ' + error.message, true);
+    } finally {
+        const researchBtn = document.querySelector(`[data-award-id="${awardId}"]`);
+        researchBtn.disabled = false;
+        researchBtn.textContent = 'Research';
+    }
 }
 
 // Event Listeners
