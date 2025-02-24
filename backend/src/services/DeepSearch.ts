@@ -287,7 +287,7 @@ ${this.formatLocation(details.place_of_performance)}
         
         try {
             console.log('Step 1: Checking cache...');
-            const existingResearch = await this.env.AWARDS_KV.get(`research:${awardId}`);
+            const existingResearch = await this.env.RESEARCH_KV.get(awardId);
             if (existingResearch) {
                 return JSON.parse(existingResearch);
             }
@@ -328,8 +328,8 @@ ${this.formatLocation(details.place_of_performance)}
             context.summary = summary;
             context.reasoningChain.finalConclusions = summary.split('\n').filter(Boolean);
 
-            await this.env.AWARDS_KV.put(
-                `research:${awardId}`,
+            await this.env.RESEARCH_KV.put(
+                awardId,
                 JSON.stringify(context)
             );
 
@@ -409,8 +409,8 @@ ${this.formatLocation(details.place_of_performance)}
             });
 
             console.log('Updating KV store with new finding...');
-            await this.env.AWARDS_KV.put(
-                `research:${context.originalAwardId}`,
+            await this.env.RESEARCH_KV.put(
+                context.originalAwardId,
                 JSON.stringify(context)
             );
         } else {

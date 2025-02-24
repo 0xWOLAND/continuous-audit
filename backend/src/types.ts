@@ -1,5 +1,6 @@
 export interface Env {
     AWARDS_KV: KVNamespace;
+    RESEARCH_KV: KVNamespace;
     FIRECRAWL_API_KEY: string;
     OPENAI_API_KEY: string;
 }

@@ -5,6 +5,7 @@ import { TemplateRenderer } from './services/TemplateRenderer';
 
 interface Env {
   AWARDS_KV: KVNamespace;
+  RESEARCH_KV: KVNamespace;  // New KV namespace for research results
   FIRECRAWL_API_KEY: string;
   OPENAI_API_KEY: string;
   ENVIRONMENT?: string;  // Optional since it might not be set in dev
@@ -94,8 +95,8 @@ router.post('/awards/:awardId/research', async (request, env: Env) => {
         const deepSearch = new DeepSearch(env);
         const searchContext = await deepSearch.searchAward(awardId, award);
         
-        await env.AWARDS_KV.put(
-            `research:${awardId}`, 
+        await env.RESEARCH_KV.put(
+            awardId, 
             JSON.stringify(searchContext)
         );
 
@@ -113,7 +114,7 @@ router.get('/awards/:awardId/research', async (request, env: Env) => {
         return new Response('Award ID is required', { status: 400 });
     }
 
-    const research = await env.AWARDS_KV.get(`research:${awardId}`);
+    const research = await env.RESEARCH_KV.get(awardId);
     if (!research) {
         return new Response('Research not found', { status: 404 });
     }
