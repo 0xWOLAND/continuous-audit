@@ -1,7 +1,4 @@
-// API endpoint configuration
 const API_BASE_URL = __API_BASE_URL__;
-
-// DOM Elements
 let statusDiv, loadingDiv, awardsTableBody;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchAwards();
 });
 
-// Create modal elements
 const modal = document.createElement('div');
 modal.id = 'researchModal';
 modal.className = 'modal';
@@ -27,17 +23,14 @@ document.body.appendChild(modal);
 const modalContent = document.getElementById('modalContent');
 const closeBtn = modal.querySelector('.close');
 
-// Close modal when clicking the X
 closeBtn.onclick = () => hideModal();
 
-// Close modal when clicking outside
 window.onclick = (event) => {
     if (event.target === modal) {
         hideModal();
     }
 }
 
-// Helper function to show status messages
 function showStatus(message, isError = false) {
     statusDiv.textContent = message;
     statusDiv.style.display = 'block';
@@ -47,7 +40,6 @@ function showStatus(message, isError = false) {
     }, 5000);
 }
 
-// Helper function to format currency
 function formatCurrency(amount) {
     if (!amount) return 'N/A';
     return new Intl.NumberFormat('en-US', {
@@ -56,7 +48,6 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
-// Helper function to format date
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -66,22 +57,13 @@ function formatDate(dateString) {
     });
 }
 
-// Function to fetch awards
 async function fetchAwards() {
     console.log("fetching awards")
     try {
         loadingDiv.style.display = 'block';
-        const testResponse = await fetch(`${API_BASE_URL}/test`);
-        console.log('Test response:', testResponse);
-        if (!testResponse.ok) {
-            throw new Error(`Backend server at ${API_BASE_URL} is not available. Please make sure it's running.`);
-        }
 
-        // Get the awards
         const awardsResponse = await fetch(`${API_BASE_URL}/awards`);
-        console.log('Awards response:', awardsResponse);
         if (!awardsResponse.ok) {
-            // If no awards found, trigger a manual fetch
             if (awardsResponse.status === 404) {
                 const fetchResponse = await fetch(`${API_BASE_URL}/fetch-awards`, {
                     method: 'POST'
@@ -212,9 +194,7 @@ function displayAwards(awards, researchStatusMap) {
     });
 }
 
-// Function to display research in modal
-function displayResearchInModal(awardId, research) {
-    // Get the primary finding for the header
+function displayResearchInModal(research) {
     const primaryFinding = research.findings[0];
     const primaryAnalysis = primaryFinding.analysis.reasoning;
     
@@ -438,7 +418,7 @@ async function showResearch(awardId) {
         }
 
         const research = await response.json();
-        displayResearchInModal(awardId, research);
+        displayResearchInModal(research);
     } catch (error) {
         console.error('Error:', error);
         modalContent.innerHTML = `

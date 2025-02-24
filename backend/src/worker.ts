@@ -47,12 +47,6 @@ router.post('/fetch-awards', async (_request, env: Env) => {
   }
 });
 
-router.get('/test', async (_request, env: Env) => {
-  return new Response('Test successful', {
-    headers: corsHeaders
-  });
-});
-
 router.get('/awards', async (_request, env: Env) => {
   const api = new USAspendingAPI(env.AWARDS_KV, env.PROXY_URL);
   const awards = await api.getAllAwards();
