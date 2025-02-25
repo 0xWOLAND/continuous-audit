@@ -15,7 +15,7 @@ The architecture is split into a few parts:
 4. The proxy server, which is a simple server that proxies requests to USASpending.gov and caches the results. This is necessary because of Cloudflare's strict limits on outgoing requests from workers.
 
 > [!WARNING]
-> The research process takes a while to run (~5-10 minutes) because of rate limits. Also, you may need to reload the page to see the latest results.
+> The research process takes a while to run (~5-10 minutes) because of rate limits. Loading the page may take a while (~1 minute). Also, you may need to reload the page to see the latest results.
 
 ## API Endpoints
 
